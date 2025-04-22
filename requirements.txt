@@ -1,0 +1,5 @@
+﻿Flask
+docxtpl
+pandas
+lxml
+jinja2
