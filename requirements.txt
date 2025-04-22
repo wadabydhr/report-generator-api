@@ -1,5 +1,6 @@
-﻿Flask
+Flask
 docxtpl
 pandas
 lxml
 jinja2
+gunicorn
