@@ -68,7 +68,9 @@ def format_report_date(lang_code):
 
 @app.route("/generate-report", methods=["POST"])
 def generate_report():
-    data = request.get_json()
+    json_data = request.get_json()
+    data = json_data[0] if isinstance(json_data, list) else json_data
+
 
     # Load language levels from Google Sheet
     sheet_url = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
