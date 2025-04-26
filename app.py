@@ -133,10 +133,10 @@ def generate_report():
     # Prepare context
     context = {
         "company": format_caps(data.get("company", "")),
-        "job_title": smart_title(data.get("job_title", "")),
-        "cdd_name": smart_title(data.get("cdd_name", "")),
+        "job_title": format_caps(data.get("job_title", "")),
+        "cdd_name": format_caps(data.get("cdd_name", "")),
         "cdd_city": smart_title(data.get("cdd_city", "")),
-        "cdd_state": data.get("cdd_state", "").title(),
+        "cdd_state": format_caps(data.get("cdd_state", "")),
         "cdd_ddi": data.get("cdd_ddi", ""),
         "cdd_ddd": data.get("cdd_ddd", ""),
         "cdd_cel": data.get("cdd_cel", ""),
@@ -144,6 +144,8 @@ def generate_report():
         "cdd_nationality": smart_title(data.get("cdd_nationality", "")),
         "cdd_age": data.get("cdd_age", ""),
         "cdd_personal": format_first(data.get("cdd_personal", "")),
+        "abt_background": data.get("abt_background",""),
+        "bhv_profile": data.get("bhv_profile",""),
         "job_bond": data.get("job_bond", ""),
         "job_wage": data.get("job_wage", ""),
         "job_variable": data.get("job_variable", ""),
@@ -165,9 +167,18 @@ def generate_report():
     # Load the template and generate the report
     doc = DocxTemplate("Template_Placeholders.docx")
     doc.render(context)
-    doc.save("output_report.docx")
+    
+output_stream = io.BytesIO()
+doc.save(output_stream)
+output_stream.seek(0)
 
-    return send_file("output_report.docx", as_attachment=True)
+return send_file(
+    output_stream,
+    mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    as_attachment=True,
+    download_name="output_report.docx"
+)
+
 
 if __name__ == "__main__":
     app.run()
