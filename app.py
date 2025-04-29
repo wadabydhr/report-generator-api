@@ -1,5 +1,5 @@
 
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify, send_from_directory
 from docxtpl import DocxTemplate
 from datetime import datetime
 import pandas as pd
@@ -168,17 +168,32 @@ def generate_report():
     doc = DocxTemplate("Template_Placeholders.docx")
     doc.render(context)
 
-    output_stream = io.BytesIO()
-    doc.save(output_stream)
-    output_stream.seek(0)
+    # Define static folder and output filename
+    output_folder = os.path.join(os.getcwd(), 'static')
+    os.makedirs(output_folder, exist_ok=True)  # Ensure /static exists
+    output_filename = "output_report.docx"
+    output_path = os.path.join(output_folder, output_filename)
 
-    return send_file(
-        output_stream,
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        as_attachment=True,
-        download_name="output_report.docx"
-    )
+    # Save the generated DOCX file into /static/
+    doc.save(output_path)
+
+    file_url = request.host_url + f"static/{output_filename}"
+    return jsonify({"file_url": file_url})
+    #output_stream = io.BytesIO()
+    #doc.save(output_stream)
+    #output_stream.seek(0)
+
+    #return send_file(
+        #output_stream,
+        #mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        #as_attachment=True,
+        #download_name="output_report.docx"
+    #)
 
 
 if __name__ == "__main__":
     app.run()
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
