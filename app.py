@@ -182,7 +182,9 @@ def generate_report():
     doc.save(output_path)
 
     file_url = request.host_url + f"static/{output_filename}"
-    return jsonify({"file_url": file_url})
+    return file_url, 200, {'Content-Type': 'text/plain'}
+    #file_url = request.host_url + f"static/{output_filename}"
+    #return jsonify({"file_url": file_url})
     #output_stream = io.BytesIO()
     #doc.save(output_stream)
     #output_stream.seek(0)
