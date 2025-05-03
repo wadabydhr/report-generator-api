@@ -172,7 +172,10 @@ def generate_report():
     # Define static folder and output filename
     output_folder = os.path.join(os.getcwd(), 'static')
     os.makedirs(output_folder, exist_ok=True)  # Ensure /static exists
-    output_filename = "output_report.docx"
+    import re
+    candidate_name = data.get("cdd_name", "report").lower().replace(" ", "-")
+    candidate_name = re.sub(r'[^a-z0-9\-]', '', candidate_name)
+    output_filename = f"{candidate_name}.docx"
     output_path = os.path.join(output_folder, output_filename)
 
     # Save the generated DOCX file into /static/
