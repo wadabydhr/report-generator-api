@@ -1,15 +1,12 @@
 
-from flask import Flask, request, send_file
-from parse_cv_to_json import parse_cv_to_json
+from flask import Flask, request, send_file, jsonify, send_from_directory
 from docxtpl import DocxTemplate
 from datetime import datetime
 import pandas as pd
 import io
+import os
 
 app = Flask(__name__)
-
-# Register your external route
-app.add_url_rule('/parse-cv-to-json', view_func=parse_cv_to_json, methods=["POST"])
 
 # Utility functions
 def smart_title(text):
@@ -172,17 +169,37 @@ def generate_report():
     doc = DocxTemplate("Template_Placeholders.docx")
     doc.render(context)
 
-    output_stream = io.BytesIO()
-    doc.save(output_stream)
-    output_stream.seek(0)
+    # Define static folder and output filename
+    output_folder = os.path.join(os.getcwd(), 'static')
+    os.makedirs(output_folder, exist_ok=True)  # Ensure /static exists
+    import re
+    candidate_name = data.get("cdd_name", "report").lower().replace(" ", "-")
+    candidate_name = re.sub(r'[^a-z0-9\-]', '', candidate_name)
+    output_filename = f"{candidate_name}.docx"
+    output_path = os.path.join(output_folder, output_filename)
 
-    return send_file(
-        output_stream,
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        as_attachment=True,
-        download_name="output_report.docx"
-    )
+    # Save the generated DOCX file into /static/
+    doc.save(output_path)
+
+    file_url = request.host_url + f"static/{output_filename}"
+    return file_url, 200, {'Content-Type': 'text/plain'}
+    #file_url = request.host_url + f"static/{output_filename}"
+    #return jsonify({"file_url": file_url})
+    #output_stream = io.BytesIO()
+    #doc.save(output_stream)
+    #output_stream.seek(0)
+
+    #return send_file(
+        #output_stream,
+        #mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        #as_attachment=True,
+        #download_name="output_report.docx"
+    #)
 
 
 if __name__ == "__main__":
     app.run()
+
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
