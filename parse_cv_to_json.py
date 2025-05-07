@@ -1,12 +1,9 @@
 
-from flask import Flask, request, jsonify
+from flask import request, jsonify
 import os
 import tempfile
 import fitz  # PyMuPDF
 import openai
-
-#app = Flask(__name__)
-#@app.route("/parse-cv-to-json", methods=["POST"])
 
 def parse_cv_to_json():
     cv_file = request.files.get("cv_file")
@@ -16,7 +13,6 @@ def parse_cv_to_json():
     if not cv_file:
         return jsonify({"error": "Missing CV file"}), 400
 
-    # Save and extract text from PDF
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(cv_file.read())
         pdf_path = tmp.name
@@ -26,7 +22,8 @@ def parse_cv_to_json():
         for page in doc:
             extracted_text += page.get_text()
 
-    # Prepare prompt for OpenAI
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+
     system_prompt = (
         "You are a system that converts resumes into structured JSON. "
         "You must follow exactly the structure of a reference JSON used for report automation. "
@@ -56,17 +53,15 @@ Instructions:
 - Translate all content to match the report_lang: "{report_lang}".
 - Use formal business writing and correct formatting.
 - Extract compensation values from the following block and assign to correct job_* keys:
-"""
-{benefits_block}
-"""
-- Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:
-"""
-{extracted_text}
-"""
+
+"""{benefits_block}"""
+
+Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:
+
+"""{extracted_text}"""
+
 Return a single, well-formatted JSON object only. Do not include explanations.
 """
-
-    openai.api_key = os.getenv("OPENAI_API_KEY")
 
     try:
         response = openai.ChatCompletion.create(
