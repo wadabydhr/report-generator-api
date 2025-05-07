@@ -1,3 +1,4 @@
+
 from flask import request, jsonify
 import os
 import tempfile
@@ -58,8 +59,7 @@ Parse the CV content below to extract work experiences, education, language flue
 
 """{extracted_text}"""
 
-Return a single, well-formatted JSON object only. Do not include explanations.
-"""
+Return a single, well-formatted JSON object only. Do not include explanations."""
 
     user_prompt = user_prompt_template.format(
         report_lang=report_lang,
