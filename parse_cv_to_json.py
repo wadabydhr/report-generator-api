@@ -1,4 +1,3 @@
-
 from flask import request, jsonify
 import os
 import tempfile
@@ -30,8 +29,7 @@ def parse_cv_to_json():
         "All keys must be present and correctly named. Translate and adapt content to match the report language (PT or EN)."
     )
 
-    user_prompt = f"""
-You will receive:
+    user_prompt_template = """You will receive:
 1. The full text extracted from a CV in PDF format
 2. A report language code ("PT" for Portuguese, "EN" for English)
 3. A block of compensation/benefits information to extract into specific keys
@@ -62,6 +60,12 @@ Parse the CV content below to extract work experiences, education, language flue
 
 Return a single, well-formatted JSON object only. Do not include explanations.
 """
+
+    user_prompt = user_prompt_template.format(
+        report_lang=report_lang,
+        benefits_block=benefits_block,
+        extracted_text=extracted_text
+    )
 
     try:
         response = openai.ChatCompletion.create(
