@@ -5,7 +5,8 @@ import tempfile
 import fitz  # PyMuPDF
 import openai
 
-client = openai.OpenAI()  # For openai >= 1.0.0
+#client = openai.OpenAI()  # For openai >= 1.0.0
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def parse_cv_to_json():
     cv_file = request.files.get("cv_file")
