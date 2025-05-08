@@ -5,10 +5,10 @@ import tempfile
 import fitz  # PyMuPDF
 import openai
 
-#client = openai.OpenAI()  # For openai >= 1.0.0
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def parse_cv_to_json():
+    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
     cv_file = request.files.get("cv_file")
     report_lang = request.form.get("report_lang", "PT").upper()
     benefits_block = request.form.get("benefits_block", "")
@@ -25,15 +25,13 @@ def parse_cv_to_json():
         for page in doc:
             extracted_text += page.get_text()
 
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-
     system_prompt = (
         "You are a system that converts resumes into structured JSON. "
         "You must follow exactly the structure of a reference JSON used for report automation. "
         "All keys must be present and correctly named. Translate and adapt content to match the report language (PT or EN)."
     )
 
-    user_prompt_template = """You will receive:
+    template = """You will receive:
 1. The full text extracted from a CV in PDF format
 2. A report language code ("PT" for Portuguese, "EN" for English)
 3. A block of compensation/benefits information to extract into specific keys
@@ -64,7 +62,7 @@ Parse the CV content below to extract work experiences, education, language flue
 
 Return a single, well-formatted JSON object only. Do not include explanations."""
 
-    user_prompt = user_prompt_template.format(
+    user_prompt = template.format(
         report_lang=report_lang,
         benefits_block=benefits_block,
         extracted_text=extracted_text
