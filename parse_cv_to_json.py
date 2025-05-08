@@ -55,11 +55,11 @@ Instructions:
 - Use formal business writing and correct formatting.
 - Extract compensation values from the following block and assign to correct job_* keys:
 
-"""{benefits_block}"""
+\"\"\"{benefits_block}\"\"\"
 
 Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:
 
-"""{extracted_text}"""
+\"\"\"{extracted_text}\"\"\"
 
 Return a single, well-formatted JSON object only. Do not include explanations."""
 
