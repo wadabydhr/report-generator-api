@@ -5,6 +5,8 @@ import tempfile
 import fitz  # PyMuPDF
 import openai
 
+client = openai.OpenAI()  # For openai >= 1.0.0
+
 def parse_cv_to_json():
     cv_file = request.files.get("cv_file")
     report_lang = request.form.get("report_lang", "PT").upper()
@@ -53,11 +55,11 @@ Instructions:
 - Use formal business writing and correct formatting.
 - Extract compensation values from the following block and assign to correct job_* keys:
 
-\"\"\"{benefits_block}\"\"\"
+"""{benefits_block}"""
 
 Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:
 
-\"\"\"{extracted_text}\"\"\"
+"""{extracted_text}"""
 
 Return a single, well-formatted JSON object only. Do not include explanations."""
 
@@ -68,7 +70,7 @@ Return a single, well-formatted JSON object only. Do not include explanations.""
     )
 
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -76,7 +78,7 @@ Return a single, well-formatted JSON object only. Do not include explanations.""
             ],
             temperature=0.3
         )
-        json_output = response["choices"][0]["message"]["content"]
+        json_output = response.choices[0].message.content
         return json_output, 200, {'Content-Type': 'application/json'}
     except Exception as e:
         return jsonify({"error": str(e)}), 500
