@@ -4,6 +4,7 @@ import os
 import tempfile
 import fitz  # PyMuPDF
 import openai
+import traceback
 
 
 def parse_cv_to_json():
@@ -16,59 +17,52 @@ def parse_cv_to_json():
     if not cv_file:
         return jsonify({"error": "Missing CV file"}), 400
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(cv_file.read())
-        pdf_path = tmp.name
-
-    extracted_text = ""
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            extracted_text += page.get_text()
-
-    system_prompt = (
-        "You are a system that converts resumes into structured JSON. "
-        "You must follow exactly the structure of a reference JSON used for report automation. "
-        "All keys must be present and correctly named. Translate and adapt content to match the report language (PT or EN)."
-    )
-
-    template = """You will receive:
-1. The full text extracted from a CV in PDF format
-2. A report language code ("PT" for Portuguese, "EN" for English)
-3. A block of compensation/benefits information to extract into specific keys
-
-Return only a single valid JSON object following the schema used in the file '@SAMPLE_REPORT_APRIL_25.json'. Your response must exactly match this structure and naming, including:
-
-Top-level:
-- cdd_name, cdd_email, cdd_city, cdd_state, cdd_cel, cdd_age, cdd_nationality
-- abt_background, bhv_profile
-- job_bond, job_wage, job_variable, job_meal, job_food, job_health, job_dental, job_life, job_pension, job_others, job_expectation
-- last_company, report_lang, report_date
-
-And nested arrays:
-- line_items: [{{ cdd_company, company_desc, job_posts: [{{ job_title, start_date, end_date, job_tasks: [{{task}}] }}] }}]
-- academics: [{{ academic_course, academic_institution, academic_conclusion }}]
-- languages: [{{ language, language_level }}]
-
-Instructions:
-- Translate all content to match the report_lang: "{report_lang}".
-- Use formal business writing and correct formatting.
-- Extract compensation values from the following block and assign to correct job_* keys:
-
-\"\"\"{benefits_block}\"\"\"
-
-Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:
-
-\"\"\"{extracted_text}\"\"\"
-
-Return a single, well-formatted JSON object only. Do not include explanations."""
-
-    user_prompt = template.format(
-        report_lang=report_lang,
-        benefits_block=benefits_block,
-        extracted_text=extracted_text
-    )
-
     try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(cv_file.read())
+            pdf_path = tmp.name
+
+        extracted_text = ""
+        with fitz.open(pdf_path) as doc:
+            for page in doc:
+                extracted_text += page.get_text()
+
+        # Escape braces to prevent format errors
+        benefits_block = benefits_block.replace("{", "{{").replace("}", "}}")
+        extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
+
+        system_prompt = (
+            "You are a system that converts resumes into structured JSON. "
+            "You must follow exactly the structure of a reference JSON used for report automation. "
+            "All keys must be present and correctly named. Translate and adapt content to match the report language (PT or EN)."
+        )
+
+        user_prompt = (
+            "You will receive:\n"
+            "1. The full text extracted from a CV in PDF format\n"
+            "2. A report language code (\"PT\" for Portuguese, \"EN\" for English)\n"
+            "3. A block of compensation/benefits information to extract into specific keys\n\n"
+            "Return only a single valid JSON object following the schema used in the file '@SAMPLE_REPORT_APRIL_25.json'. "
+            "Your response must exactly match this structure and naming, including:\n\n"
+            "Top-level:\n"
+            "- cdd_name, cdd_email, cdd_city, cdd_state, cdd_cel, cdd_age, cdd_nationality\n"
+            "- abt_background, bhv_profile\n"
+            "- job_bond, job_wage, job_variable, job_meal, job_food, job_health, job_dental, job_life, job_pension, job_others, job_expectation\n"
+            "- last_company, report_lang, report_date\n\n"
+            "And nested arrays:\n"
+            "- line_items: [{ cdd_company, company_desc, job_posts: [{ job_title, start_date, end_date, job_tasks: [{task}] }] }]\n"
+            "- academics: [{ academic_course, academic_institution, academic_conclusion }]\n"
+            "- languages: [{ language, language_level }]\n\n"
+            f"Instructions:\n"
+            f"- Translate all content to match the report_lang: \"{report_lang}\".\n"
+            f"- Use formal business writing and correct formatting.\n"
+            f"- Extract compensation values from the following block and assign to correct job_* keys:\n\n"
+            f"{benefits_block}\n\n"
+            f"Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:\n\n"
+            f"{extracted_text}\n\n"
+            "Return a single, well-formatted JSON object only. Do not include explanations."
+        )
+
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
@@ -77,7 +71,14 @@ Return a single, well-formatted JSON object only. Do not include explanations.""
             ],
             temperature=0.3
         )
+
+        if not response.choices or not hasattr(response.choices[0], "message"):
+            return jsonify({"error": "Unexpected response structure from OpenAI"}), 500
+
         json_output = response.choices[0].message.content
         return json_output, 200, {'Content-Type': 'application/json'}
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print("❌ Internal server error:", e)
+        print(traceback.format_exc())
+        return jsonify({"error": "Internal error occurred during parsing"}), 500
