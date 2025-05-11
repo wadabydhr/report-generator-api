@@ -3,12 +3,12 @@ from flask import request, jsonify
 import os
 import tempfile
 import fitz  # PyMuPDF
-import openai
+from openai import Client
 import traceback
 
 
 def parse_cv_to_json():
-    client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = Client(api_key=os.getenv("OPENAI_API_KEY"))
 
     cv_file = request.files.get("cv_file")
     report_lang = request.form.get("report_lang", "PT").upper()
