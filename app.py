@@ -70,38 +70,36 @@ def format_report_date(lang_code):
     else:
         return f"{ordinal(day)} {month_en[month_index]}, {year}"
 
+
+import json
+
 @app.route("/generate-report", methods=["POST"])
 def generate_report():
-    json_data = request.get_json()
-    #data = json_data[0] if isinstance(json_data, list) else json_data
-    import json  # Já deve estar no topo, mas inclua se não estiver
+    raw = request.get_data(as_text=True)
 
-    # Trata o caso em que o Bubble envia como { "data": "<json string>" }
+    print("⚠️ RAW BODY RECEIVED:")
+    print(raw)
+
+    try:
+        json_data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {
+            "error": "❌ Failed to decode top-level string JSON."
+        }, 400
+
+    # Caso venha como {"data": "{...json...}"}
     if isinstance(json_data, dict) and "data" in json_data and isinstance(json_data["data"], str):
         try:
             data = json.loads(json_data["data"])
-            print("Decoded nested JSON inside 'data' key.")
+            print("✅ Decoded nested JSON inside 'data'")
         except json.JSONDecodeError:
             return {
-                "error": "Failed to decode nested JSON string. Check if Bubble is sending JSON-safe string in 'data'."
-            }, 400
-
-
-# Alternativa: talvez o corpo inteiro já seja uma string JSON
-    elif isinstance(json_data, str):
-        try:
-            data = json.loads(json_data)
-            print("Decoded JSON from root-level string.")
-        except json.JSONDecodeError:
-            return {
-                "error": "Failed to decode top-level string JSON."
+                "error": "❌ Failed to decode nested JSON inside 'data'"
             }, 400
     else:
         data = json_data[0] if isinstance(json_data, list) else json_data
 
-    # DEBUG: tipo final
-    print("Final parsed 'data' type:", type(data))
-
+    print("✅ Final parsed 'data' type:", type(data))
 
 
     # Load language levels from Google Sheet
