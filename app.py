@@ -74,17 +74,17 @@ def format_report_date(lang_code):
 def generate_report():
     json_data = request.get_json()
     #data = json_data[0] if isinstance(json_data, list) else json_data
-import json  # Já deve estar no topo, mas inclua se não estiver
+    import json  # Já deve estar no topo, mas inclua se não estiver
 
     # Detecta JSON aninhado enviado como string (caso típico de JSON-SAFE do Bubble)
-if isinstance(json_data, dict) and len(json_data) == 1 and isinstance(list(json_data.values())[0], str):
-    try:
-        unpacked = json.loads(list(json_data.values())[0])
-        data = unpacked
-    except json.JSONDecodeError:
-        return {"error": "Invalid JSON structure received. Check if 'Body formatted as JSON-safe' was used."}, 400
-else:
-    data = json_data[0] if isinstance(json_data, list) else json_data
+    if isinstance(json_data, dict) and len(json_data) == 1 and isinstance(list(json_data.values())[0], str):
+        try:
+            unpacked = json.loads(list(json_data.values())[0])
+            data = unpacked
+        except json.JSONDecodeError:
+            return {"error": "Invalid JSON structure received. Check if 'Body formatted as JSON-safe' was used."}, 400
+    else:
+        data = json_data[0] if isinstance(json_data, list) else json_data
 
     # Load language levels from Google Sheet
     sheet_url = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
