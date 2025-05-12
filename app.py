@@ -83,9 +83,9 @@ def generate_report():
     try:
         json_data = json.loads(raw)
         if isinstance(json_data, str):
-        data = json.loads(json_data)
-    else:
-        data = json_data
+            data = json.loads(json_data)
+        else:
+            data = json_data
     except json.JSONDecodeError:
         return {
             "error": "❌ Failed to decode top-level string JSON."
