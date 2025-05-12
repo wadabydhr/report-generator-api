@@ -195,7 +195,17 @@ def generate_report():
     }
 
     # Load the template and generate the report
-    doc = DocxTemplate("Template_Placeholders.docx")
+    # Escolhe o template com base no idioma
+    lang = data.get("report_lang", "PT").upper()
+    template_file = f"Template_Placeholders_{lang}.docx"
+
+    import os
+    if not os.path.exists(template_file):
+        return {
+            "error": f"Template file '{template_file}' not found on server."
+        }, 500
+
+    doc = DocxTemplate(template_file)
     doc.render(context)
 
     output_stream = io.BytesIO()
