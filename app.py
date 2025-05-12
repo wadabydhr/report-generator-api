@@ -78,10 +78,14 @@ def generate_report():
     raw = request.get_data(as_text=True)
 
     print("⚠️ RAW BODY RECEIVED:")
-    print(raw)
+    print(repr(raw))  # mostra até se estiver vazio ou com aspas escapadas
 
     try:
         json_data = json.loads(raw)
+        if isinstance(json_data, str):
+        data = json.loads(json_data)
+    else:
+        data = json_data
     except json.JSONDecodeError:
         return {
             "error": "❌ Failed to decode top-level string JSON."
