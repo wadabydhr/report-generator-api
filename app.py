@@ -80,14 +80,27 @@ def generate_report():
     if isinstance(json_data, dict) and "data" in json_data and isinstance(json_data["data"], str):
         try:
             data = json.loads(json_data["data"])
+            print("Decoded nested JSON inside 'data' key.")
         except json.JSONDecodeError:
             return {
                 "error": "Failed to decode nested JSON string. Check if Bubble is sending JSON-safe string in 'data'."
             }, 400
+
+
+# Alternativa: talvez o corpo inteiro já seja uma string JSON
+    elif isinstance(json_data, str):
+        try:
+            data = json.loads(json_data)
+            print("Decoded JSON from root-level string.")
+        except json.JSONDecodeError:
+            return {
+                "error": "Failed to decode top-level string JSON."
+            }, 400
     else:
         data = json_data[0] if isinstance(json_data, list) else json_data
 
-
+    # DEBUG: tipo final
+    print("Final parsed 'data' type:", type(data))
 
 
 
