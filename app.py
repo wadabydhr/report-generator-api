@@ -76,15 +76,20 @@ def generate_report():
     #data = json_data[0] if isinstance(json_data, list) else json_data
     import json  # Já deve estar no topo, mas inclua se não estiver
 
-    # Detecta JSON aninhado enviado como string (caso típico de JSON-SAFE do Bubble)
-    if isinstance(json_data, dict) and len(json_data) == 1 and isinstance(list(json_data.values())[0], str):
+    # Trata o caso em que o Bubble envia como { "data": "<json string>" }
+    if isinstance(json_data, dict) and "data" in json_data and isinstance(json_data["data"], str):
         try:
-            unpacked = json.loads(list(json_data.values())[0])
-            data = unpacked
+            data = json.loads(json_data["data"])
         except json.JSONDecodeError:
-            return {"error": "Invalid JSON structure received. Check if 'Body formatted as JSON-safe' was used."}, 400
+            return {
+                "error": "Failed to decode nested JSON string. Check if Bubble is sending JSON-safe string in 'data'."
+            }, 400
     else:
         data = json_data[0] if isinstance(json_data, list) else json_data
+
+
+
+
 
     # Load language levels from Google Sheet
     sheet_url = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
