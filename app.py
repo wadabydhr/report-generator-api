@@ -5,6 +5,7 @@ from docxtpl import DocxTemplate
 from datetime import datetime
 import pandas as pd
 import io
+import json
 
 app = Flask(__name__)
 
@@ -70,48 +71,28 @@ def format_report_date(lang_code):
     else:
         return f"{ordinal(day)} {month_en[month_index]}, {year}"
 
-
-import json
-
 @app.route("/generate-report", methods=["POST"])
 def generate_report():
     raw = request.get_data(as_text=True)
-
     print("⚠️ RAW BODY RECEIVED:")
-    print(repr(raw))  # mostra até se estiver vazio ou com aspas escapadas
+    print(repr(raw))
 
     try:
-        json_data = json.loads(raw)
-        if isinstance(json_data, str):
-            data = json.loads(json_data)
-        else:
-            data = json_data
-    except json.JSONDecodeError:
+        data = json.loads(raw)
+        if isinstance(data, str):
+            data = json.loads(data)
+    except Exception as e:
         return {
-            "error": "❌ Failed to decode top-level string JSON."
+            "error": f"❌ Failed to parse JSON: {str(e)}",
+            "raw": raw
         }, 400
 
-    # Caso venha como {"data": "{...json...}"}
-    if isinstance(json_data, dict) and "data" in json_data and isinstance(json_data["data"], str):
-        try:
-            data = json.loads(json_data["data"])
-            print("✅ Decoded nested JSON inside 'data'")
-        except json.JSONDecodeError:
-            return {
-                "error": "❌ Failed to decode nested JSON inside 'data'"
-            }, 400
-    else:
-        data = json_data[0] if isinstance(json_data, list) else json_data
+    print("✅ JSON loaded successfully:", type(data))
 
-    print("✅ Final parsed 'data' type:", type(data))
-
-
-    # Load language levels from Google Sheet
     sheet_url = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
     df_levels = pd.read_csv(sheet_url)
     level_map = df_levels.set_index("language_level").to_dict(orient="index")
 
-    # Process line_items
     for item in data.get("line_items", []):
         start_dates = []
         end_dates = []
@@ -138,12 +119,10 @@ def generate_report():
         item["company_end_date"] = max(end_dates).strftime("%m/%Y") if end_dates else "presente"
         item["job_count"] = len(item.get("job_posts", []))
 
-    # Process academics
     for acad in data.get("academics", []):
         acad["academic_course"] = smart_title(acad.get("academic_course", ""))
         acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
 
-    # Process languages
     for lang in data.get("languages", []):
         lang["language"] = smart_title(lang.get("language", ""))
         level = lang.get("language_level")
@@ -154,7 +133,6 @@ def generate_report():
             lang["language_description"] = "Desconhecido"
             lang["level_description"] = ""
 
-    # Determine last_company
     latest_date = None
     last_company = ""
     for item in data.get("line_items", []):
@@ -164,7 +142,6 @@ def generate_report():
             latest_date = end_date
             last_company = item.get("cdd_company", "")
 
-    # Prepare context
     context = {
         "company": format_caps(data.get("company", "")),
         "job_title": format_caps(data.get("job_title", "")),
@@ -198,18 +175,7 @@ def generate_report():
         "report_date": format_report_date(data.get("report_lang", "PT"))
     }
 
-    # Load the template and generate the report
-    # Escolhe o template com base no idioma
-    lang = data.get("report_lang", "PT").upper()
-    template_file = f"Template_Placeholders_{lang}.docx"
-
-    import os
-    if not os.path.exists(template_file):
-        return {
-            "error": f"Template file '{template_file}' not found on server."
-        }, 500
-
-    doc = DocxTemplate(template_file)
+    doc = DocxTemplate("Template_Placeholders.docx")
     doc.render(context)
 
     output_stream = io.BytesIO()
@@ -222,7 +188,6 @@ def generate_report():
         as_attachment=True,
         download_name="output_report.docx"
     )
-
 
 if __name__ == "__main__":
     app.run()
