@@ -61,7 +61,7 @@ def parse_cv_to_json():
             f"{benefits_block}\n\n"
             """
 Please strictly generate the final output using exactly the structure defined below.
-Use the same nesting, keys, and formats — do not change names or array formats.
+Use the same nesting, keys, and formats - do not change names or array formats.
 All fields must be present, even if left empty.
 
 Follow this strict JSON template structure:
@@ -131,7 +131,7 @@ Return the final output as a single, well-formatted JSON object only. No explana
 """
 
 Please strictly generate the final output using exactly the structure defined below.
-Use the same nesting, keys, and formats — do not change names or array formats.
+Use the same nesting, keys, and formats - do not change names or array formats.
 All fields must be present, even if left empty.
 
 Follow this strict JSON template structure:
