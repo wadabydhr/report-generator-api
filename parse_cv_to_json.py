@@ -75,8 +75,19 @@ def parse_cv_to_json():
         if not response.choices or not hasattr(response.choices[0], "message"):
             return jsonify({"error": "Unexpected response structure from OpenAI"}), 500
 
+        #json_output = response.choices[0].message.content
+        #return json_output, 200, {'Content-Type': 'application/json'}
+
         json_output = response.choices[0].message.content
-        return json_output, 200, {'Content-Type': 'application/json'}
+        parsed_data = json.loads(json_output)
+
+        return jsonify({
+            **parsed_data,
+            "json_result": json.dumps(parsed_data, ensure_ascii=False, indent=2)
+        })
+
+
+
 
     except Exception as e:
         print("❌ Internal server error:", e)
