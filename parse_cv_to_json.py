@@ -98,7 +98,10 @@ CV Content:
 """
 
 
-            f"Instructions:\n"
+        instructions = f"""
+Instructions:
+{extracted_text}
+"""
             f"- Translate all content to match the report_lang: \"{report_lang}\".\n"
             f"- Use formal business writing and correct formatting.\n"
             f"- Extract compensation values from the following block and assign to correct job_* keys:\n\n"
