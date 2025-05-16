@@ -41,6 +41,7 @@ def parse_cv_to_json():
 user_prompt = (
     "You will receive:\n"
 )
+)
             "1. The full text extracted from a CV in PDF format\n"
             "2. A report language code (\"PT\" for Portuguese, \"EN\" for English)\n"
             "3. A block of compensation/benefits information to extract into specific keys\n\n"
