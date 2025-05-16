@@ -5,6 +5,7 @@ import tempfile
 import fitz  # PyMuPDF
 from openai import Client
 import traceback
+import json
 
 
 def parse_cv_to_json():
