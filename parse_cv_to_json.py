@@ -133,7 +133,7 @@ Return the final output as a single, well formatted JSON object only. No explana
 Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:\n\n"
             f"{extracted_text}\n\n"
             "Return a single, well formatted JSON object only. Do not include explanations."
-        )
+                        )
 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
