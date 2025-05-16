@@ -75,18 +75,23 @@ def parse_cv_to_json():
         if not response.choices or not hasattr(response.choices[0], "message"):
             return jsonify({"error": "Unexpected response structure from OpenAI"}), 500
 
-        json_output = response.choices[0].message.content
-        return json_output, 200, {'Content-Type': 'application/json'}
-
         #json_output = response.choices[0].message.content
-        #parsed_data = json.loads(json_output)
+        #return json_output, 200, {'Content-Type': 'application/json'}
 
-        #return jsonify({
-        #    **parsed_data,
-        #    "json_result": json.dumps(parsed_data, ensure_ascii=False, indent=2)
-        #})
+        json_output = response.choices[0].message.content
 
-
+        try:
+            parsed_data = json.loads(json_output)
+            return jsonify({
+                **parsed_data,
+                "json_result": json.dumps(parsed_data, ensure_ascii=False, indent=2)
+            })
+        except json.JSONDecodeError:
+            print("⚠️ Falha ao converter resposta do OpenAI para JSON. Conteúdo bruto será retornado.")
+            return jsonify({
+                "json_result": json_output,
+                "error": "Could not parse response as JSON. Original content returned in 'json_result'."
+            }), 200
 
 
     except Exception as e:
