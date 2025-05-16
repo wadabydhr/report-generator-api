@@ -45,23 +45,23 @@ def parse_cv_to_json():
             "3. A block of compensation/benefits information to extract into specific keys\n\n"
             "Return only a single valid JSON object following the schema used in the file '@SAMPLE_REPORT_APRIL_25.json'. "
             "Your response must exactly match this structure and naming, including:\n\n"
-            "Top-level:\n"
-            "- cdd_name, cdd_email, cdd_city, cdd_state, cdd_cel, cdd_age, cdd_nationality\n"
-            "- abt_background, bhv_profile\n"
-            "- job_bond, job_wage, job_variable, job_meal, job_food, job_health, job_dental, job_life, job_pension, job_others, job_expectation\n"
-            "- last_company, report_lang, report_date\n\n"
+            "Top level:\n"
+            "cdd_name, cdd_email, cdd_city, cdd_state, cdd_cel, cdd_age, cdd_nationality\n"
+            "abt_background, bhv_profile\n"
+            "job_bond, job_wage, job_variable, job_meal, job_food, job_health, job_dental, job_life, job_pension, job_others, job_expectation\n"
+            "last_company, report_lang, report_date\n\n"
             "And nested arrays:\n"
-            "- line_items: [{ cdd_company, company_desc, job_posts: [{ job_title, start_date, end_date, job_tasks: [{task}] }] }]\n"
-            "- academics: [{ academic_course, academic_institution, academic_conclusion }]\n"
-            "- languages: [{ language, language_level }]\n\n"
+            "line_items: [{ cdd_company, company_desc, job_posts: [{ job_title, start_date, end_date, job_tasks: [{task}] }] }]\n"
+            "academics: [{ academic_course, academic_institution, academic_conclusion }]\n"
+            "languages: [{ language, language_level }]\n\n"
             f"Instructions:\n"
-            f"- Translate all content to match the report_lang: \"{report_lang}\".\n"
-            f"- Use formal business writing and correct formatting.\n"
-            f"- Extract compensation values from the following block and assign to correct job_* keys:\n\n"
+            f"Translate all content to match the report_lang: \"{report_lang}\".\n"
+            f"Use formal business writing and correct formatting.\n"
+            f"Extract compensation values from the following block and assign to correct job_* keys:\n\n"
             f"{benefits_block}\n\n"
 
 Please strictly generate the final output using exactly the structure defined below.
-Use the same nesting, keys, and formats — do not change names or array formats.
+Use the same nesting, keys, and formats and do not change names or array formats.
 All fields must be present, even if left empty.
 
 Follow this strict JSON template structure:
@@ -127,12 +127,12 @@ Follow this strict JSON template structure:
 }
 
 Do not omit or rename any key. All "job_tasks" must be a list of objects with "task" as key.
-Return the final output as a single, well-formatted JSON object only. No explanation.
+Return the final output as a single, well formatted JSON object only. No explanation.
 
 
 Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:\n\n"
             f"{extracted_text}\n\n"
-            "Return a single, well-formatted JSON object only. Do not include explanations."
+            "Return a single, well formatted JSON object only. Do not include explanations."
         )
 
         response = client.chat.completions.create(
