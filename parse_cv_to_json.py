@@ -59,10 +59,83 @@ def parse_cv_to_json():
             f"- Use formal business writing and correct formatting.\n"
             f"- Extract compensation values from the following block and assign to correct job_* keys:\n\n"
             f"{benefits_block}\n\n"
-            f"Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:\n\n"
-            f"{extracted_text}\n\n"
-            "Return a single, well-formatted JSON object only. Do not include explanations."
-        )
+            f"
+
+
+Please strictly generate the final output using exactly the structure defined below.
+Use the same nesting, keys, and formats — do not change names or array formats.
+All fields must be present, even if left empty.
+
+Follow this strict JSON template structure:
+{
+ "company": "",
+ "job_title": "",
+ "cdd_name": "",
+ "cdd_city": "",
+ "cdd_state": "",
+ "cdd_ddi": "",
+ "cdd_ddd": "",
+ "cdd_cel": "",
+ "cdd_email": "",
+ "cdd_nationality": "",
+ "cdd_age": "",
+ "cdd_personal": "",
+ "abt_background": "",
+ "bhv_profile": "",
+ "job_bond": "",
+ "job_wage": "",
+ "job_variable": "",
+ "job_meal": "",
+ "job_food": "",
+ "job_health": "",
+ "job_dental": "",
+ "job_life": "",
+ "job_pension": "",
+ "job_others": "",
+ "job_expectation": "",
+ "last_company": "",
+ "report_lang": "EN",
+ "report_date": "2025-01-01",
+ "line_items": [
+    {
+        "cdd_company": "",
+        "company_desc": "",
+        "job_posts": [
+            {
+                "job_title": "",
+                "start_date": "",
+                "end_date": "",
+                "job_tasks": [
+                    { "task": "" },
+                    { "task": "" }
+                ]
+            }
+        ]
+    }
+ ],
+ "academics": [
+    {
+        "academic_course": "",
+        "academic_institution": "",
+        "academic_conclusion": ""
+    }
+ ],
+ "languages": [
+    {
+        "language": "",
+        "language_level": ""
+    }
+ ]
+}
+
+Do not omit or rename any key. All "job_tasks" must be a list of objects with "task" as key.
+Return the final output as a single, well-formatted JSON object only. No explanation.
+
+
+Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:\n\n"
+f"{extracted_text}\n\n"
+"Return a single, well-formatted JSON object only. Do not include explanations."
+        )           
 
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",

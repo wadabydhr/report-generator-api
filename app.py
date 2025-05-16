@@ -175,7 +175,8 @@ def generate_report():
         "report_date": format_report_date(data.get("report_lang", "PT"))
     }
 
-    doc = DocxTemplate("Template_Placeholders.docx")
+    template_name = "Template_Placeholders_EN.docx" if data.get("report_lang", "PT").upper() == "EN" else "Template_Placeholders_PT.docx"
+    doc = DocxTemplate(template_name)
     doc.render(context)
 
     output_stream = io.BytesIO()
