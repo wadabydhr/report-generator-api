@@ -59,8 +59,6 @@ def parse_cv_to_json():
             f"- Use formal business writing and correct formatting.\n"
             f"- Extract compensation values from the following block and assign to correct job_* keys:\n\n"
             f"{benefits_block}\n\n"
-            f"
-
 
 Please strictly generate the final output using exactly the structure defined below.
 Use the same nesting, keys, and formats — do not change names or array formats.
