@@ -131,7 +131,8 @@ def parse_cv_to_json():
             validated_data = enforce_schema(parsed_data, REQUIRED_SCHEMA)
             return jsonify({
                 **validated_data,
-                "json_result": json.dumps(validated_data, ensure_ascii=False, separators=(',', ':'))
+                #"json_result": json.dumps(validated_data, ensure_ascii=False, separators=(',', ':'))
+                "json_result": validated_data
             })
         except json.JSONDecodeError:
             print("⚠️ Falha ao converter resposta do OpenAI para JSON. Conteúdo bruto será retornado.")
