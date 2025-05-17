@@ -7,6 +7,77 @@ import traceback
 import json
 
 
+REQUIRED_SCHEMA = {
+    "cdd_name": "",
+    "cdd_email": "",
+    "cdd_city": "",
+    "cdd_state": "",
+    "cdd_cel": "",
+    "cdd_age": "",
+    "cdd_nationality": "",
+    "abt_background": "",
+    "bhv_profile": "",
+    "job_bond": "",
+    "job_wage": "",
+    "job_variable": "",
+    "job_meal": "",
+    "job_food": "",
+    "job_health": "",
+    "job_dental": "",
+    "job_life": "",
+    "job_pension": "",
+    "job_others": "",
+    "job_expectation": "",
+    "last_company": "",
+    "report_lang": "",
+    "report_date": "",
+    "line_items": [{
+        "cdd_company": "",
+        "company_desc": "",
+        "job_posts": [{
+            "job_title": "",
+            "start_date": "",
+            "end_date": "",
+            "job_tasks": [{"task": ""}]
+        }]
+    }],
+    "academics": [{
+        "academic_course": "",
+        "academic_institution": "",
+        "academic_conclusion": ""
+    }],
+    "languages": [{
+        "language": "",
+        "language_level": ""
+    }]
+}
+
+
+def enforce_schema(data, schema):
+    """
+    Recursively enforce the schema on data:
+    - Ensures all keys in schema exist in data (fills missing with default).
+    - Removes any extra keys not in schema.
+    - Handles nested dicts and lists.
+    """
+    if isinstance(schema, dict):
+        result = {}
+        for key, default in schema.items():
+            if key in data:
+                result[key] = enforce_schema(data[key], default)
+            else:
+                result[key] = enforce_schema(default, default)
+        return result
+    elif isinstance(schema, list):
+        if not isinstance(data, list) or not data:
+            return schema  # Return default schema if missing or empty
+        # Enforce schema on each item in the list, but only use the first schema item as template
+        template = schema[0]
+        return [enforce_schema(item, template) for item in data]
+    else:
+        return data if data is not None else schema
+
+
 def parse_cv_to_json():
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -31,39 +102,26 @@ def parse_cv_to_json():
         benefits_block = benefits_block.replace("{", "{{").replace("}", "}}")
         extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
 
+        # Prompt engineering: force exact structure
+        schema_example = json.dumps(REQUIRED_SCHEMA, ensure_ascii=False, indent=2)
         system_prompt = (
-            "You are a system that converts resumes into structured JSON. "
-            "You must follow exactly the structure of a reference JSON used for report automation. "
-            "All keys must be present and correctly named. Translate and adapt content to match the report language (PT or EN)."
+            "You are a system that converts resumes into structured JSON for automation. "
+            "You must follow exactly the structure of the provided schema. "
+            "All keys must be present and correctly named. If a value is missing, use an empty string, empty list, or the correct type. "
+            "Do not omit, rename, or add any keys."
         )
 
         user_prompt = (
-            "You will receive:\n"
-            "1. The full text extracted from a CV in PDF format\n"
-            "2. A report language code (\"PT\" for Portuguese, \"EN\" for English)\n"
-            "3. A block of compensation/benefits information to extract into specific keys\n\n"
-            "Return only a single valid JSON object following the schema used in the file '@SAMPLE_REPORT_APRIL_25.json'. "
-            "Return the following information as a valid JSON object, using EXACTLY the keys and structure below. "
-            "Do not omit, rename, or add any keys. If a value is missing, use an empty string or array. "
-            "Example schema:\n"
-            "{\n"
-            "  \"cdd_name\": \"\", \"cdd_email\": \"\", \"cdd_city\": \"\", \"cdd_state\": \"\", \"cdd_cel\": \"\", \"cdd_age\": \"\", \"cdd_nationality\": \"\", \n"
-            "  \"abt_background\": \"\", \"bhv_profile\": \"\", \n"
-            "  \"job_bond\": \"\", \"job_wage\": \"\", \"job_variable\": \"\", \"job_meal\": \"\", \"job_food\": \"\", \"job_health\": \"\", \"job_dental\": \"\", \"job_life\": \"\", \"job_pension\": \"\", \"job_others\": \"\", \"job_expectation\": \"\",\n"
-            "  \"last_company\": \"\", \"report_lang\": \"\", \"report_date\": \"\",\n"
-            "  \"line_items\": [{ \"cdd_company\": \"\", \"company_desc\": \"\", \"job_posts\": [{ \"job_title\": \"\", \"start_date\": \"\", \"end_date\": \"\", \"job_tasks\": [{\"task\": \"\"}] }] }],\n"
-            "  \"academics\": [{ \"academic_course\": \"\", \"academic_institution\": \"\", \"academic_conclusion\": \"\" }],\n"
-            "  \"languages\": [{ \"language\": \"\", \"language_level\": \"\" }]\n"
-            "}\n"
-            "Fill in this structure with data from the PDF. If a field is missing, leave it as an empty string or array. Only output this JSON object."
-            "Instructions:\n"
-            f"- Translate all content to match the report_lang: \"{report_lang}\".\n"
-            "- Use formal business writing and correct formatting.\n"
-            "- Extract compensation values from the following block and assign to correct job_* keys:\n\n"
-            f"{benefits_block}\n\n"
-            "Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:\n\n"
-            f"{extracted_text}\n\n"
-            "Return a single, well-formatted JSON object only. Do not include explanations."
+            "Extract ALL possible information from the following CV content and map it into the provided schema. "
+            "Your response must be a single well-formatted JSON object with exactly the same keys and structure as the schema below. "
+            "If you cannot fill a value, leave it blank or as an empty list/object. "
+            "Do not explain, only output the JSON object.\n\n"
+            "Schema example:\n"
+            f"{schema_example}\n\n"
+            f"Report language: {report_lang}\n"
+            f"Compensation/benefits block:\n{benefits_block}\n\n"
+            "CV Content:\n"
+            f"{extracted_text}"
         )
 
         response = client.chat.completions.create(
@@ -81,10 +139,13 @@ def parse_cv_to_json():
         json_output = response.choices[0].message.content
 
         try:
+            # Attempt to parse the model's response
             parsed_data = json.loads(json_output)
+            # Enforce schema on parsed_data
+            validated_data = enforce_schema(parsed_data, REQUIRED_SCHEMA)
             return jsonify({
-                **parsed_data,
-                "json_result": json.dumps(parsed_data, ensure_ascii=False, indent=2)
+                **validated_data,
+                "json_result": json.dumps(validated_data, ensure_ascii=False, indent=2)
             })
         except json.JSONDecodeError:
             print("⚠️ Falha ao converter resposta do OpenAI para JSON. Conteúdo bruto será retornado.")
