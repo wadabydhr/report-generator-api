@@ -1,4 +1,3 @@
-
 from flask import request, jsonify
 import os
 import tempfile
@@ -38,63 +37,8 @@ def parse_cv_to_json():
             "All keys must be present and correctly named. Translate and adapt content to match the report language (PT or EN)."
         )
 
-user_prompt = f"""
-You will receive:
-1. The full text extracted from a CV in PDF format
-2. A report language code ("PT" for Portuguese, "EN" for English)
-3. A block of compensation/benefits information to extract into specific keys
-
-Return only a single valid JSON object following the schema used in the file '@SAMPLE_REPORT_APRIL_25.json'.
-Your response must exactly match this structure and naming, including:
-
-Top-level:
-- cdd_name, cdd_email, cdd_city, cdd_state, cdd_cel, cdd_age, cdd_nationality
-- abt_background, bhv_profile
-
-Nested arrays (structure must be strictly followed):
-- line_items: [
-    {{
-      "cdd_company": "",
-      "company_desc": "",
-      "job_posts": [
-        {{
-          "job_title": "",
-          "start_date": "",
-          "end_date": "",
-          "job_tasks": [
-            {{ "task": "" }},
-            {{ "task": "" }}
-          ]
-        }}
-      ]
-    }}
-  ]
-
-- academics: [
-    {{
-      "academic_course": "",
-      "academic_institution": "",
-      "academic_conclusion": ""
-    }}
-  ]
-
-- languages: [
-    {{
-      "language": "",
-      "language_level": ""
-    }}
-  ]
-
-All "job_tasks" must be a list of objects with "task" as key.
-Do not omit or rename any key.
-Return the final output as a well-formatted JSON object only, without explanation or commentary.
-
----
-
-CV Content:
-{extracted_text}
-"""
-)
+        user_prompt = (
+            "You will receive:\n"
             "1. The full text extracted from a CV in PDF format\n"
             "2. A report language code (\"PT\" for Portuguese, \"EN\" for English)\n"
             "3. A block of compensation/benefits information to extract into specific keys\n\n"
@@ -109,12 +53,12 @@ CV Content:
             "- line_items: [{ cdd_company, company_desc, job_posts: [{ job_title, start_date, end_date, job_tasks: [{task}] }] }]\n"
             "- academics: [{ academic_course, academic_institution, academic_conclusion }]\n"
             "- languages: [{ language, language_level }]\n\n"
-            f"Instructions:\n"
+            "Instructions:\n"
             f"- Translate all content to match the report_lang: \"{report_lang}\".\n"
-            f"- Use formal business writing and correct formatting.\n"
-            f"- Extract compensation values from the following block and assign to correct job_* keys:\n\n"
+            "- Use formal business writing and correct formatting.\n"
+            "- Extract compensation values from the following block and assign to correct job_* keys:\n\n"
             f"{benefits_block}\n\n"
-            f"Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:\n\n"
+            "Parse the CV content below to extract work experiences, education, language fluency, and narrative sections:\n\n"
             f"{extracted_text}\n\n"
             "Return a single, well-formatted JSON object only. Do not include explanations."
         )
@@ -131,9 +75,6 @@ CV Content:
         if not response.choices or not hasattr(response.choices[0], "message"):
             return jsonify({"error": "Unexpected response structure from OpenAI"}), 500
 
-        #json_output = response.choices[0].message.content
-        #return json_output, 200, {'Content-Type': 'application/json'}
-
         json_output = response.choices[0].message.content
 
         try:
@@ -148,7 +89,6 @@ CV Content:
                 "json_result": json_output,
                 "error": "Could not parse response as JSON. Original content returned in 'json_result'."
             }), 200
-
 
     except Exception as e:
         print("❌ Internal server error:", e)
