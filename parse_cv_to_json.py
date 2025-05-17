@@ -6,7 +6,6 @@ from openai import Client
 import traceback
 import json
 
-
 REQUIRED_SCHEMA = {
     "cdd_name": "",
     "cdd_email": "",
@@ -52,14 +51,7 @@ REQUIRED_SCHEMA = {
     }]
 }
 
-
 def enforce_schema(data, schema):
-    """
-    Recursively enforce the schema on data:
-    - Ensures all keys in schema exist in data (fills missing with default).
-    - Removes any extra keys not in schema.
-    - Handles nested dicts and lists.
-    """
     if isinstance(schema, dict):
         result = {}
         for key, default in schema.items():
@@ -70,13 +62,11 @@ def enforce_schema(data, schema):
         return result
     elif isinstance(schema, list):
         if not isinstance(data, list) or not data:
-            return schema  # Return default schema if missing or empty
-        # Enforce schema on each item in the list, but only use the first schema item as template
+            return schema
         template = schema[0]
         return [enforce_schema(item, template) for item in data]
     else:
         return data if data is not None else schema
-
 
 def parse_cv_to_json():
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
@@ -98,11 +88,9 @@ def parse_cv_to_json():
             for page in doc:
                 extracted_text += page.get_text()
 
-        # Escape braces to prevent format errors
         benefits_block = benefits_block.replace("{", "{{").replace("}", "}}")
         extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
 
-        # Prompt engineering: force exact structure
         schema_example = json.dumps(REQUIRED_SCHEMA, ensure_ascii=False, indent=2)
         system_prompt = (
             "You are a system that converts resumes into structured JSON for automation. "
@@ -139,13 +127,11 @@ def parse_cv_to_json():
         json_output = response.choices[0].message.content
 
         try:
-            # Attempt to parse the model's response
             parsed_data = json.loads(json_output)
-            # Enforce schema on parsed_data
             validated_data = enforce_schema(parsed_data, REQUIRED_SCHEMA)
             return jsonify({
                 **validated_data,
-                "json_result": json.dumps(validated_data, ensure_ascii=False, indent=2)
+                "json_result": json.dumps(validated_data, ensure_ascii=False, separators=(',', ':'))
             })
         except json.JSONDecodeError:
             print("⚠️ Falha ao converter resposta do OpenAI para JSON. Conteúdo bruto será retornado.")
