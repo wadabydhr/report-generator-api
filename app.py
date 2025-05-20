@@ -15,7 +15,12 @@ app.add_url_rule('/parse-cv-to-json', view_func=parse_cv_to_json, methods=["POST
 
 
 def generate_report_from_data(data):
-    template_path = os.path.join("template", "Template_Placeholders.docx")
+    report_lang = data.get("report_lang", "PT").upper()
+    if report_lang == "EN":
+        template_path = os.path.join("template", "Template_Placeholders_EN.docx")
+    else:
+        template_path = os.path.join("template", "Template_Placeholders.docx")
+
     doc = DocxTemplate(template_path)
     doc.render(data)
 
