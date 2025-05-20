@@ -49,28 +49,11 @@ def generate_report_from_data(data):
     output_stream.seek(0)
 
     return send_file(
-        io.BytesIO(output_stream.read()),  # ✅ mantém o arquivo vivo
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        as_attachment=True,
-        download_name="relatorio.docx"
-    )
-
-
-    doc = DocxTemplate(template_path)
-    doc.render(data)
-
-    output_stream = io.BytesIO()
-    doc.save(output_stream)
-    output_stream.seek(0)
-
-    return send_file(
         output_stream,
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         as_attachment=True,
         download_name="relatorio.docx"
     )
-
-
 
 # Utility functions
 def smart_title(text):
