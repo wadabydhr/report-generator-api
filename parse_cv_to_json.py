@@ -129,18 +129,20 @@ def parse_cv_to_json():
         try:
             parsed_data = json.loads(json_output)
             validated_data = enforce_schema(parsed_data, REQUIRED_SCHEMA)
-            return jsonify({
-                **validated_data,
+            return jsonify(validated_data)
+            #return jsonify({
+                #**validated_data,
                 #"json_result": json.dumps(validated_data, ensure_ascii=False, separators=(',', ':'))
-                "json_result": validated_data
-            })
+                #"json_result": validated_data
+            #})
         except json.JSONDecodeError:
             print("⚠️ Falha ao converter resposta do OpenAI para JSON. Conteúdo bruto será retornado.")
-            return jsonify({
-                "json_result": json_output,
-                "error": "Could not parse response as JSON. Original content returned in 'json_result'."
-            }), 200
-
+            #return jsonify({
+            #    "json_result": json_output,
+            #    "error": "Could not parse response as JSON. Original content returned in 'json_result'."
+            #}), 200
+            return jsonify(json_output)
+            
     except Exception as e:
         print("❌ Internal server error:", e)
         print(traceback.format_exc())
