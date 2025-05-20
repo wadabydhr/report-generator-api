@@ -129,7 +129,30 @@ def parse_cv_to_json():
         try:
             parsed_data = json.loads(json_output)
             validated_data = enforce_schema(parsed_data, REQUIRED_SCHEMA)
-            return jsonify(validated_data)
+
+            import requests
+            from flask import send_file
+            import io
+
+            # Envia o JSON diretamente para o gerador de relatório
+            report_response = requests.post(
+                "http://localhost:5000/generate-report",  # ajuste para o host real, se necessário
+                json=validated_data
+            )
+
+            if report_response.status_code != 200:
+                return jsonify({"error": "Erro ao gerar relatório"}), 500
+
+            # Retorna o arquivo .docx diretamente ao Bubble
+            return send_file(
+                io.BytesIO(report_response.content),
+                mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                as_attachment=True,
+                download_name="relatorio.docx"
+            )
+
+
+            #return jsonify(validated_data)
             #return jsonify({
                 #**validated_data,
                 #"json_result": json.dumps(validated_data, ensure_ascii=False, separators=(',', ':'))
@@ -142,7 +165,7 @@ def parse_cv_to_json():
             #    "error": "Could not parse response as JSON. Original content returned in 'json_result'."
             #}), 200
             return jsonify(json_output)
-            
+
     except Exception as e:
         print("❌ Internal server error:", e)
         print(traceback.format_exc())
