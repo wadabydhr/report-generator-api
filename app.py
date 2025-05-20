@@ -49,10 +49,10 @@ def generate_report_from_data(data):
     output_stream.seek(0)
 
     return send_file(
-        output_stream,
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        output_path,
         as_attachment=True,
-        download_name="relatorio.docx"
+        download_name=output_filename,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
 # Utility functions
