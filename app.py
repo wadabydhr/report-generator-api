@@ -22,11 +22,14 @@ def generate_report_from_data(data):
         template_path = os.path.join("template", "Template_Placeholders_PT.docx")
 
         # Adiciona job_count com base no total de cargos (job_posts) de todas as empresas
-    try:
-        data["job_count"] = sum(len(item.get("job_posts", [])) for item in data.get("line_items", []))
-    except Exception as e:
-        data["job_count"] = 0
+    #try:
+    #    data["job_count"] = sum(len(item.get("job_posts", [])) for item in data.get("line_items", []))
+    #except Exception as e:
+    #    data["job_count"] = 0
 
+     # ✅ Adiciona job_count em cada empresa (item) individualmente
+    for item in data.get("line_items", []):
+        item["job_count"] = len(item.get("job_posts", []))
 
     doc = DocxTemplate(template_path)
     doc.render(data)
