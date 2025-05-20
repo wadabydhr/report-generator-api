@@ -19,7 +19,11 @@ def generate_report_from_data(data):
     if report_lang == "EN":
         template_path = os.path.join("template", "Template_Placeholders_EN.docx")
     else:
-        template_path = os.path.join("template", "Template_Placeholders.docx")
+        template_path = os.path.join("template", "Template_Placeholders_PT.docx")
+
+    # Adiciona a chave job_count com base no total de cargos em todas as empresas
+    data["job_count"] = sum(len(item.get("job_posts", [])) for item in data.get("line_items", []))
+
 
     doc = DocxTemplate(template_path)
     doc.render(data)
