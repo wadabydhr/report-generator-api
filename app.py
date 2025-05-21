@@ -49,9 +49,9 @@ def generate_report_from_data(data):
     output_stream.seek(0)
 
     return send_file(
-        output_path,
+        output_stream,
         as_attachment=True,
-        download_name=output_filename,
+        download_name="report.docx",
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
