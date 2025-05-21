@@ -40,10 +40,18 @@ def generate_report_from_data(data):
     filename = f"{safe_name}_report.docx"
     file_path = os.path.join("static", filename)
 
+
     # ✅ Garantir que a pasta existe
     os.makedirs("static", exist_ok=True)
 
-    doc.save(file_path)
+    output_stream = io.BytesIO()
+    doc.save(output_stream)
+    output_stream.seek(0)
+
+    os.makedirs("static", exist_ok=True)
+    with open(file_path, "wb") as f:
+    f.write(output_stream.read())
+
     print(f"✅ Relatório salvo como {file_path} em {time.time() - start:.2f}s")
 
     # Gera URL de acesso público ao arquivo
@@ -56,19 +64,6 @@ def generate_report_from_data(data):
         "status": "ok",
         "download_url": download_url
     })
-
-
-    #output_stream = io.BytesIO()
-    #doc.save(output_stream)
-    #output_stream.seek(0)
-
-    #print(f"✅ Relatório gerado em {time.time() - start:.2f} segundos.")
-    #return send_file(
-    #    output_stream,
-    #    as_attachment=True,
-    #    download_name="report.docx",
-    #    mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    #)
 
 # Utility functions
 def smart_title(text):
@@ -235,22 +230,23 @@ def generate_report():
         "report_date": format_report_date(data.get("report_lang", "PT"))
     }
 
-    template_name = "Template_Placeholders_EN.docx" if data.get("report_lang", "PT").upper() == "EN" else "Template_Placeholders_PT.docx"
-    doc = DocxTemplate(template_name)
-    doc.render(context)
+    #template_name = "Template_Placeholders_EN.docx" if data.get("report_lang", "PT").upper() == "EN" else "Template_Placeholders_PT.docx"
+    #doc = DocxTemplate(template_name)
+    #doc.render(context)
 
-    print("Output_stream desnecessário..")
-    output_stream = io.BytesIO()
-    doc.save(output_stream)
-    output_stream.seek(0)
+    #print("Output_stream desnecessário..")
+    #output_stream = io.BytesIO()
+    #doc.save(output_stream)
+    #output_stream.seek(0)
 
-    print("send_file desnecessário..")
-    return send_file(
-        output_stream,
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        as_attachment=True,
-        download_name="output_report.docx"
-    )
+
+    #print("send_file desnecessário..")
+    #return send_file(
+    #    output_stream,
+    #    mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    #    as_attachment=True,
+    #    download_name="output_report.docx"
+    #)
 
 if __name__ == "__main__":
     app.run()
