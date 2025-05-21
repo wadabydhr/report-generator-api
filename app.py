@@ -50,7 +50,7 @@ def generate_report_from_data(data):
 
     os.makedirs("static", exist_ok=True)
     with open(file_path, "wb") as f:
-    f.write(output_stream.read())
+        f.write(output_stream.read())
 
     print(f"✅ Relatório salvo como {file_path} em {time.time() - start:.2f}s")
 
