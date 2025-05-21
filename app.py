@@ -35,27 +35,35 @@ def generate_report_from_data(data):
     print("🧠 Renderizando dados no template...")
     doc.render(data)
 
-    #with io.BytesIO() as output_stream:
-    #    doc.save(output_stream)
-    #    output_stream.seek(0)
-    #    return send_file(
-    #        output_stream,
-    #        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    #        as_attachment=True,
-    #        download_name="relatorio.docx"
-    #    )
+    # Gera nome de arquivo baseado no nome do candidato
+    safe_name = data.get("cdd_name", "report").replace(" ", "_").lower()
+    filename = f"{safe_name}_report.docx"
+    file_path = os.path.join("static", filename)
 
-    output_stream = io.BytesIO()
-    doc.save(output_stream)
-    output_stream.seek(0)
+    doc.save(file_path)
+    print(f"✅ Relatório salvo como {file_path} em {time.time() - start:.2f}s")
 
-    print(f"✅ Relatório gerado em {time.time() - start:.2f} segundos.")
-    return send_file(
-        output_stream,
-        as_attachment=True,
-        download_name="report.docx",
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+    # Gera URL de acesso público ao arquivo
+    base_url = request.host_url.rstrip('/')
+    download_url = f"{base_url}/static/{filename}"
+
+    return jsonify({
+        "status": "ok",
+        "download_url": download_url
+    })
+
+
+    #output_stream = io.BytesIO()
+    #doc.save(output_stream)
+    #output_stream.seek(0)
+
+    #print(f"✅ Relatório gerado em {time.time() - start:.2f} segundos.")
+    #return send_file(
+    #    output_stream,
+    #    as_attachment=True,
+    #    download_name="report.docx",
+    #    mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    #)
 
 # Utility functions
 def smart_title(text):
