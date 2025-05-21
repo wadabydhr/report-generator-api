@@ -49,6 +49,7 @@ def generate_report_from_data(data):
     # Gera URL de acesso público ao arquivo
     base_url = request.host_url.rstrip('/')
     download_url = f"{base_url}/static/{filename}"
+    print(f"📎 URL de download gerada: {download_url}")
 
 
     return jsonify({
