@@ -1,5 +1,5 @@
 
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 from parse_cv_to_json import parse_cv_to_json
 from docxtpl import DocxTemplate
 from datetime import datetime
