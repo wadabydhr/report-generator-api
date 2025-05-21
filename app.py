@@ -239,10 +239,12 @@ def generate_report():
     doc = DocxTemplate(template_name)
     doc.render(context)
 
+    print("Output_stream desnecessário..")
     output_stream = io.BytesIO()
     doc.save(output_stream)
     output_stream.seek(0)
 
+    print("send_file desnecessário..")
     return send_file(
         output_stream,
         mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
