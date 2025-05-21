@@ -7,6 +7,7 @@ import pandas as pd
 import io
 import json
 import os
+import time
 
 app = Flask(__name__)
 
@@ -15,23 +16,23 @@ app.add_url_rule('/parse-cv-to-json', view_func=parse_cv_to_json, methods=["POST
 
 
 def generate_report_from_data(data):
+    start = time.time()
+    print("Iniciando geração de relatório...")
     report_lang = data.get("report_lang", "PT").upper()
+
     if report_lang == "EN":
         template_path = os.path.join("template", "Template_Placeholders_EN.docx")
     else:
         template_path = os.path.join("template", "Template_Placeholders_PT.docx")
 
-        # Adiciona job_count com base no total de cargos (job_posts) de todas as empresas
-    #try:
-    #    data["job_count"] = sum(len(item.get("job_posts", [])) for item in data.get("line_items", []))
-    #except Exception as e:
-    #    data["job_count"] = 0
-
      # ✅ Adiciona job_count em cada empresa (item) individualmente
     for item in data.get("line_items", []):
         item["job_count"] = len(item.get("job_posts", []))
 
+    print(f"📄 Template carregado: {template_path}")
     doc = DocxTemplate(template_path)
+
+    print("🧠 Renderizando dados no template...")
     doc.render(data)
 
     #with io.BytesIO() as output_stream:
@@ -48,6 +49,7 @@ def generate_report_from_data(data):
     doc.save(output_stream)
     output_stream.seek(0)
 
+    print(f"✅ Relatório gerado em {time.time() - start:.2f} segundos.")
     return send_file(
         output_stream,
         as_attachment=True,
