@@ -34,6 +34,27 @@ def generate_report_from_data(data):
     doc = DocxTemplate(template_path)
     doc.render(data)
 
+    #with io.BytesIO() as output_stream:
+    #    doc.save(output_stream)
+    #    output_stream.seek(0)
+    #    return send_file(
+    #        output_stream,
+    #        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    #        as_attachment=True,
+    #        download_name="relatorio.docx"
+    #    )
+
+    output_stream = io.BytesIO()
+    doc.save(output_stream)
+    output_stream.seek(0)
+
+    return send_file(
+        output_path,
+        as_attachment=True,
+        download_name=output_filename,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
 # Utility functions
 def smart_title(text):
     if not isinstance(text, str):
