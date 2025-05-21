@@ -50,6 +50,7 @@ def generate_report_from_data(data):
     base_url = request.host_url.rstrip('/')
     download_url = f"{base_url}/static/{filename}"
 
+
     return jsonify({
         "status": "ok",
         "download_url": download_url
