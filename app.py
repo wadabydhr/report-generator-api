@@ -38,7 +38,10 @@ def generate_report_from_data(data):
     # Gera nome de arquivo baseado no nome do candidato
     safe_name = data.get("cdd_name", "report").replace(" ", "_").lower()
     filename = f"{safe_name}_report.docx"
-    file_path = os.path.join("static", filename)
+    file_path = os.path.join("static", filename
+
+    # ✅ Garantir que a pasta existe
+    os.makedirs("static", exist_ok=True)
 
     doc.save(file_path)
     print(f"✅ Relatório salvo como {file_path} em {time.time() - start:.2f}s")
