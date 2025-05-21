@@ -18,49 +18,69 @@ app.add_url_rule('/parse-cv-to-json', view_func=parse_cv_to_json, methods=["POST
 def generate_report_from_data(data):
     start = time.time()
     print("Iniciando geração de relatório...")
-    report_lang = data.get("report_lang", "PT").upper()
 
+    report_lang = data.get("report_lang", "PT").upper()
     if report_lang == "EN":
         template_path = os.path.join("template", "Template_Placeholders_EN.docx")
     else:
         template_path = os.path.join("template", "Template_Placeholders_PT.docx")
 
-     # ✅ Adiciona job_count em cada empresa (item) individualmente
-    for item in data.get("line_items", []):
+    last_company = data.get("line_items", [{}])[-1].get("cdd_company", "")
+
+    context = {
+        "company": format_caps(data.get("company", "")),
+        "job_title": format_caps(data.get("job_title", "")),
+        "cdd_name": format_caps(data.get("cdd_name", "")),
+        "cdd_city": smart_title(data.get("cdd_city", "")),
+        "cdd_state": format_caps(data.get("cdd_state", "")),
+        "cdd_ddi": data.get("cdd_ddi", ""),
+        "cdd_ddd": data.get("cdd_ddd", ""),
+        "cdd_cel": data.get("cdd_cel", ""),
+        "cdd_email": data.get("cdd_email", ""),
+        "cdd_nationality": smart_title(data.get("cdd_nationality", "")),
+        "cdd_age": data.get("cdd_age", ""),
+        "cdd_personal": format_first(data.get("cdd_personal", "")),
+        "abt_background": data.get("abt_background", ""),
+        "bhv_profile": data.get("bhv_profile", ""),
+        "job_bond": data.get("job_bond", ""),
+        "job_wage": data.get("job_wage", ""),
+        "job_variable": data.get("job_variable", ""),
+        "job_meal": data.get("job_meal", ""),
+        "job_food": data.get("job_food", ""),
+        "job_health": data.get("job_health", ""),
+        "job_dental": data.get("job_dental", ""),
+        "job_life": data.get("job_life", ""),
+        "job_pension": data.get("job_pension", ""),
+        "job_others": data.get("job_others", ""),
+        "job_expectation": data.get("job_expectation", ""),
+        "line_items": data.get("line_items", []),
+        "academics": data.get("academics", []),
+        "languages": data.get("languages", []),
+        "last_company": last_company,
+        "report_date": format_report_date(data.get("report_lang", "PT"))
+    }
+
+    for item in context.get("line_items", []):
         item["job_count"] = len(item.get("job_posts", []))
 
     print(f"📄 Template carregado: {template_path}")
     doc = DocxTemplate(template_path)
-
     print("🧠 Renderizando dados no template...")
-    doc.render(data)
-
-    # Gera nome de arquivo baseado no nome do candidato
-    safe_name = data.get("cdd_name", "report").replace(" ", "_").lower()
-    filename = f"{safe_name}_report.docx"
-    file_path = os.path.join("static", filename)
-
-
-    # ✅ Garantir que a pasta existe
-    os.makedirs("static", exist_ok=True)
+    doc.render(context)
 
     output_stream = io.BytesIO()
     doc.save(output_stream)
     output_stream.seek(0)
 
     os.makedirs("static", exist_ok=True)
+    file_path = os.path.join("static", f"{context['cdd_name'].replace(' ', '_').lower()}_report.docx")
     with open(file_path, "wb") as f:
         f.write(output_stream.read())
 
     print(f"✅ Relatório salvo como {file_path} em {time.time() - start:.2f}s")
-
-    # Gera URL de acesso público ao arquivo
-    base_url = request.host_url.rstrip('/')
-    download_url = f"{base_url}/static/{filename}"
+    download_url = f"https://report-generator-7qud.onrender.com/static/{os.path.basename(file_path)}"
     print(f"📎 URL de download gerada: {download_url}")
-
-
-    return jsonify({
+    return jsonify({"status": "ok", "download_url": download_url})
         "status": "ok",
         "download_url": download_url
     })
