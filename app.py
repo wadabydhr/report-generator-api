@@ -80,8 +80,8 @@ def generate_report_from_data(data):
     print(f"✅ Relatório salvo como {file_path} em {time.time() - start:.2f}s")
     download_url = f"https://report-generator-7qud.onrender.com/static/{os.path.basename(file_path)}"
     print(f"📎 URL de download gerada: {download_url}")
-    return jsonify({"status": "ok", "download_url": download_url})
-
+    #return jsonify({"status": "ok", "download_url": download_url})
+    return download_url, 200, {"Content-Type": "text/plain"}
 # Utility functions
 def smart_title(text):
     if not isinstance(text, str):
