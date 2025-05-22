@@ -250,7 +250,7 @@ def generate_report():
         "report_date": format_report_date(data.get("report_lang", "PT"))
     }
 
-    return generate_report_from_data(context)
+    return generate_report_from_data(data)
 
     #template_name = "Template_Placeholders_EN.docx" if data.get("report_lang", "PT").upper() == "EN" else "Template_Placeholders_PT.docx"
     #doc = DocxTemplate(template_name)
