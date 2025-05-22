@@ -81,9 +81,6 @@ def generate_report_from_data(data):
     download_url = f"https://report-generator-7qud.onrender.com/static/{os.path.basename(file_path)}"
     print(f"📎 URL de download gerada: {download_url}")
     return jsonify({"status": "ok", "download_url": download_url})
-        "status": "ok",
-        "download_url": download_url
-    })
 
 # Utility functions
 def smart_title(text):
