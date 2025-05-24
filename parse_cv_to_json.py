@@ -1,4 +1,3 @@
-from flask import request, jsonify
 import os
 import tempfile
 import fitz  # PyMuPDF
@@ -73,16 +72,17 @@ def enforce_schema(data, schema):
 def parse_cv_to_json(file_path, report_lang):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
 
-    cv_file = request.files.get("cv_file")
-    report_lang = request.form.get("report_lang", "PT").upper()
-    benefits_block = request.form.get("benefits_block", "")
+    #cv_file = request.files.get("cv_file")
+    #report_lang = request.form.get("report_lang", "PT").upper()
+    #benefits_block = request.form.get("benefits_block", "")
 
-    if not cv_file:
+    if not file_path:
         return jsonify({"error": "Missing CV file"}), 400
 
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(cv_file.read())
+            with open(file_path, "rb") as source_file:
+                tmp.write(source_file.read())
             pdf_path = tmp.name
 
         extracted_text = ""
@@ -109,7 +109,7 @@ def parse_cv_to_json(file_path, report_lang):
             "Schema example:\n"
             f"{schema_example}\n\n"
             f"Report language: {report_lang}\n"
-            f"Compensation/benefits block:\n{benefits_block}\n\n"
+            #f"Compensation/benefits block:\n{benefits_block}\n\n"
             "CV Content:\n"
             f"{extracted_text}"
         )
