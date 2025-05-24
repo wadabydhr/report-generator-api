@@ -9,3 +9,4 @@ numpy==1.23.5
 gunicorn==21.2.0
 requests
 flask-cors
+streamlit==1.33.0
