@@ -6,6 +6,7 @@ import json
 from datetime import datetime
 from parse_cv_to_json import parse_cv_to_json  # função esperada no seu arquivo
 from app import generate_report  # função esperada no seu arquivo
+from app import generate_report_from_data
 
 st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
 
@@ -46,7 +47,12 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and job_ti
 
         # Gerar o relatório .docx
         #generate_report(json_path=tmp_json_path, template_path=template_path, output_path=output_path)
-        generate_report()
+        #generate_report()
+        with open(tmp_json_path, "r", encoding="utf-8") as f:
+            json_data = json.load(f)
+
+        generate_report_from_data(json_data, template_path, output_path)
+
 
         # Exibir link de download
         with open(output_path, "rb") as f:
