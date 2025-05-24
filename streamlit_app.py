@@ -45,7 +45,8 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and job_ti
         output_path = os.path.join(tempfile.gettempdir(), output_filename)
 
         # Gerar o relatório .docx
-        generate_report(json_path=tmp_json_path, template_path=template_path, output_path=output_path)
+        #generate_report(json_path=tmp_json_path, template_path=template_path, output_path=output_path)
+        generate_report()
 
         # Exibir link de download
         with open(output_path, "rb") as f:
