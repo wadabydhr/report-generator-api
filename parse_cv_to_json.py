@@ -77,7 +77,7 @@ def parse_cv_to_json(file_path, report_lang):
     #benefits_block = request.form.get("benefits_block", "")
 
     if not file_path:
-        return jsonify({"error": "Missing CV file"}), 400
+        return {"error": "Missing CV file"}
 
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -124,7 +124,7 @@ def parse_cv_to_json(file_path, report_lang):
         )
 
         if not response.choices or not hasattr(response.choices[0], "message"):
-            return jsonify({"error": "Unexpected response structure from OpenAI"}), 500
+            return {"error": "Unexpected response structure from OpenAI"}
 
         json_output = response.choices[0].message.content
 
@@ -144,7 +144,7 @@ def parse_cv_to_json(file_path, report_lang):
             )
 
             if report_response.status_code != 200:
-                return jsonify({"error": "Erro ao gerar relatório"}), 500
+                return {"error": "Erro ao gerar relatório"}
 
             # Retorna o arquivo .docx diretamente ao Bubble
             return send_file(
@@ -155,7 +155,7 @@ def parse_cv_to_json(file_path, report_lang):
             )
 
 
-            #return jsonify(validated_data)
+            #return validated_data
             #return jsonify({
                 #**validated_data,
                 #"json_result": json.dumps(validated_data, ensure_ascii=False, separators=(',', ':'))
@@ -167,9 +167,9 @@ def parse_cv_to_json(file_path, report_lang):
             #    "json_result": json_output,
             #    "error": "Could not parse response as JSON. Original content returned in 'json_result'."
             #}), 200
-            return jsonify(json_output)
+            return json_output
 
     except Exception as e:
         print("❌ Internal server error:", e)
         print(traceback.format_exc())
-        return jsonify({"error": "Internal error occurred during parsing"}), 500
+        return {"error": "Internal error occurred during parsing"}
