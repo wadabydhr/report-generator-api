@@ -26,10 +26,7 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and job_ti
             tmp_pdf_path = tmp_pdf.name
 
         # Processar PDF para gerar JSON
-        json_data = parse_cv_to_json(
-            tmp_pdf_path,
-            language
-        )
+        json_data = parse_cv_to_json(tmp_pdf_path,language)
 
         # Adiciona os novos campos ao JSON
         json_data["company"] = company
