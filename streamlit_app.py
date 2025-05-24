@@ -27,11 +27,14 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and job_ti
 
         # Processar PDF para gerar JSON
         json_data = parse_cv_to_json(
-            file_path=tmp_pdf_path,
+            tmp_pdf_path,
             report_language=language,
-            company=company,
-            job_title=job_title
+            inputBenefits=inputBenefits
         )
+
+        # Adiciona os novos campos ao JSON
+        json_data["company"] = company
+        json_data["job_title"] = job_title
 
         # Salvar JSON temporário
         with tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w", encoding="utf-8") as tmp_json:
