@@ -4,7 +4,7 @@ import tempfile
 import os
 import json
 from datetime import datetime
-from parse_cv_to_json import parse_cv_file  # função esperada no seu arquivo
+from parse_cv_to_json import parse_cv_to_json  # função esperada no seu arquivo
 from app import generate_report  # função esperada no seu arquivo
 
 st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
@@ -26,7 +26,7 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and job_ti
             tmp_pdf_path = tmp_pdf.name
 
         # Processar PDF para gerar JSON
-        json_data = parse_cv_file(
+        json_data = parse_cv_to_json(
             file_path=tmp_pdf_path,
             report_language=language,
             company=company,
