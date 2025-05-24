@@ -51,8 +51,11 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and job_ti
         with open(tmp_json_path, "r", encoding="utf-8") as f:
             json_data = json.load(f)
 
-        generate_report_from_data(json_data, template_path, output_path)
+        #generate_report_from_data(json_data, template_path, output_path)
+        with open(tmp_json_path, "r", encoding="utf-8") as f:
+            json_data = json.load(f)
 
+        generate_report_from_data(json_data, template_path, output_path)
 
         # Exibir link de download
         with open(output_path, "rb") as f:
