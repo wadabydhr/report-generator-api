@@ -70,7 +70,7 @@ def enforce_schema(data, schema):
     else:
         return data if data is not None else schema
 
-def parse_cv_to_json():
+def parse_cv_to_json(file_path, report_lang):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
 
     cv_file = request.files.get("cv_file")
