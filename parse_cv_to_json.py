@@ -7,6 +7,8 @@ import traceback
 import json
 
 REQUIRED_SCHEMA = {
+    "company": "",
+    "company_title": "",
     "cdd_name": "",
     "cdd_email": "",
     "cdd_city": "",
