@@ -16,10 +16,10 @@ st.title("📄 Gerador de Relatórios de Candidatos")
 uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
 language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
 company = st.text_input("🏢 Nome da empresa")
-job_title = st.text_input("💼 Título da vaga")
+company_title = st.text_input("💼 Título da vaga")
 
 # Botão de geração
-if st.button("▶️ Gerar Relatório") and uploaded_file and company and job_title:
+if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
     with st.spinner("Processando o currículo e gerando relatório..."):
         # Salvar PDF temporariamente
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -28,10 +28,12 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and job_ti
 
         # Processar PDF para gerar JSON
         json_data = parse_cv_to_json(tmp_pdf_path,language)
+        st.subheader("🔎 Dados extraídos do currículo:")
+        st.json(json_data)
 
         # Adiciona os novos campos ao JSON
         json_data["company"] = company
-        json_data["job_title"] = job_title
+        json_data["company_title"] = company_title
 
         # Salvar JSON temporário
         with tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w", encoding="utf-8") as tmp_json:
