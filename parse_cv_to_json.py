@@ -136,9 +136,11 @@ def parse_cv_to_json(file_path, report_lang):
             return {"error": "Unexpected response structure from OpenAI"}
 
         json_output = response.choices[0].message.content
+        print("📥 Conteúdo bruto recebido do modelo:\n", json_output)
 
         try:
             parsed_data = json.loads(json_output)
+            print("✅ JSON interpretado com sucesso.")
             validated_data = enforce_schema(parsed_data, REQUIRED_SCHEMA)
 
             import requests
@@ -153,11 +155,13 @@ def parse_cv_to_json(file_path, report_lang):
             )
 
             if report_response.status_code != 200:
+                print("❌ Erro na resposta da API de relatório:")
+                print("Status code:", report_response.status_code)
+                print("Resposta:", report_response.text)
                 import traceback
                 traceback.print_exc()
-                import traceback
-                traceback.print_exc()
-                return {"error": "Erro interno durante o parsing"}
+                return {"error": f"Erro ao gerar relatório: status {report_response.status_code}"}
+
 
             # Retorna o arquivo .docx diretamente ao Bubble
             return send_file(
