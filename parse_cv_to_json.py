@@ -142,7 +142,9 @@ def parse_cv_to_json(file_path, report_lang):
             if report_response.status_code != 200:
                 import traceback
                 traceback.print_exc()
-                return {"error": str(e)}
+                import traceback
+                traceback.print_exc()
+                return {"error": "Erro interno durante o parsing"}
 
             # Retorna o arquivo .docx diretamente ao Bubble
             return send_file(
