@@ -1,9 +1,9 @@
+import json
 import os
 import tempfile
 import fitz  # PyMuPDF
 from openai import Client
 import traceback
-import json
 
 REQUIRED_SCHEMA = {
     "company": "",
@@ -151,7 +151,8 @@ def parse_cv_to_json(file_path, report_lang):
             report_response = requests.post(
                 #"http://localhost:5000/generate-report",  # ajuste para o host real, se necessário
                 "https://report-generator-7qud.onrender.com/generate-report",
-                json=validated_data
+                json=validated_data,
+                headers=headers
             )
 
             if report_response.status_code != 200:
@@ -159,7 +160,6 @@ def parse_cv_to_json(file_path, report_lang):
                 print("🔢 Status HTTP:", report_response.status_code)
                 print("📩 Resposta do servidor:", report_response.text)
                 print("📦 JSON enviado para o app.py:")
-                import json
                 print(json.dumps(validated_data, indent=2, ensure_ascii=False))
 
                 import traceback

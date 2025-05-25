@@ -1,5 +1,5 @@
 print("VERSÃO CORRETA DO APP.PY CARREGADA")
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
