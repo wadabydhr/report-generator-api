@@ -147,6 +147,8 @@ def parse_cv_to_json(file_path, report_lang):
             from flask import send_file
             import io
 
+            headers = {"Content-Type": "application/json"}
+
             # Envia o JSON diretamente para o gerador de relatório
             report_response = requests.post(
                 #"http://localhost:5000/generate-report",  # ajuste para o host real, se necessário
