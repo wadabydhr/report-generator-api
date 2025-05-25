@@ -109,7 +109,7 @@ def parse_cv_to_json(file_path, report_lang):
             "CV Content:\n"
             f"{extracted_text}"
         )
-
+        print("📤 Enviando prompt para OpenAI...")
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -118,6 +118,13 @@ def parse_cv_to_json(file_path, report_lang):
             ],
             temperature=0.3
         )
+        print("📥 Resposta recebida da OpenAI.")
+        print(response)
+        # Verificação explícita
+        if response and hasattr(response, "choices"):
+            print("✅ Estrutura válida da resposta:", response.choices[0].message.content)
+
+
 
         if not response.choices or not hasattr(response.choices[0], "message"):
             return {"error": "Unexpected response structure from OpenAI"}
