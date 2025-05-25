@@ -155,13 +155,16 @@ def parse_cv_to_json(file_path, report_lang):
             )
 
             if report_response.status_code != 200:
-                print("❌ Erro na resposta da API de relatório:")
-                print("Status code:", report_response.status_code)
-                print("Resposta:", report_response.text)
+                print("❌ Erro ao chamar o endpoint /generate-report")
+                print("🔢 Status HTTP:", report_response.status_code)
+                print("📩 Resposta do servidor:", report_response.text)
+                print("📦 JSON enviado para o app.py:")
+                import json
+                print(json.dumps(validated_data, indent=2, ensure_ascii=False))
+
                 import traceback
                 traceback.print_exc()
-                return {"error": f"Erro ao gerar relatório: status {report_response.status_code}"}
-
+                return {"error": f"Erro ao gerar relatório: HTTP {report_response.status_code}"}
 
             # Retorna o arquivo .docx diretamente ao Bubble
             return send_file(
