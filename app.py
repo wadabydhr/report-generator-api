@@ -70,9 +70,15 @@ def generate_report_from_data(data, template_path, output_path):
 
     context["line_items"] = line_items
 
-    doc = DocxTemplate(template_path)
-    doc.render(context)
-    doc.save(output_path)
+    try:
+        doc = DocxTemplate(template_path)
+        doc.render(context)
+        doc.save(output_path)
+    except Exception as e:
+        import traceback
+        print("Erro ao gerar o relatório:")
+        traceback.print_exc()
+        raise e  # deixa a exceção visível no log para debug no Streamlit
 
 
 
