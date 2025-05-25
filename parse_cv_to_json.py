@@ -72,9 +72,6 @@ def enforce_schema(data, schema):
 def parse_cv_to_json(file_path, report_lang):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
 
-    #cv_file = request.files.get("cv_file")
-    #report_lang = request.form.get("report_lang", "PT").upper()
-    #benefits_block = request.form.get("benefits_block", "")
 
     if not file_path:
         return {"error": "Missing CV file"}
@@ -90,7 +87,6 @@ def parse_cv_to_json(file_path, report_lang):
             for page in doc:
                 extracted_text += page.get_text()
 
-        benefits_block = benefits_block.replace("{", "{{").replace("}", "}}")
         extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
 
         schema_example = json.dumps(REQUIRED_SCHEMA, ensure_ascii=False, indent=2)
