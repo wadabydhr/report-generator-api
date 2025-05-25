@@ -109,6 +109,12 @@ def parse_cv_to_json(file_path, report_lang):
             "CV Content:\n"
             f"{extracted_text}"
         )
+        print("🟢 Início do parse_cv_to_json")
+        print("🗂️ Caminho do arquivo:", file_path)
+        print("🌐 Idioma:", report_lang)
+        print("🧠 Preparando prompt para envio ao OpenAI")
+        print("📜 Texto extraído:", extracted_text[:200])  # mostra trecho
+
         print("📤 Enviando prompt para OpenAI...")
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
