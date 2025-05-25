@@ -152,9 +152,7 @@ def parse_cv_to_json(file_path, report_lang):
             # Envia o JSON diretamente para o gerador de relatório
             report_response = requests.post(
                 #"http://localhost:5000/generate-report",  # ajuste para o host real, se necessário
-                #"https://report-generator-7qud.onrender.com/generate-report",
-                # CERTO para chamadas internas no mesmo container:
-                "http://localhost:5000/generate-report",
+                "https://report-generator-7qud.onrender.com/generate-report",
                 json=validated_data,
                 headers=headers
             )
