@@ -31,6 +31,10 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and compan
         st.subheader("🔎 Dados extraídos do currículo:")
         st.json(json_data)
 
+        if "error" in json_data:
+            st.error("❌ Erro retornado pelo parser:")
+            st.stop()
+
         # Adiciona os novos campos ao JSON
         json_data["company"] = company
         json_data["company_title"] = company_title
@@ -52,10 +56,13 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and compan
         #generate_report()
         with open(tmp_json_path, "r", encoding="utf-8") as f:
             json_data = json.load(f)
-
-        #generate_report_from_data(json_data, template_path, output_path)
-        with open(tmp_json_path, "r", encoding="utf-8") as f:
-            json_data = json.load(f)
+        try:
+            generate_report_from_data(json_data, template_path, output_path)
+        except Exception as e:
+            import traceback
+            st.error("❌ Erro ao gerar o relatório:")
+            st.code(traceback.format_exc())
+            st.stop()
 
         #generate_report_from_data(json_data, template_path, output_path)
         try:
