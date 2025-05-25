@@ -170,6 +170,10 @@ def parse_cv_to_json(file_path, report_lang):
             return json_output
 
     except Exception as e:
-        print("❌ Internal server error:", e)
-        print(traceback.format_exc())
-        return {"error": "Internal error occurred during parsing"}
+        #print("❌ Internal server error:", e)
+        #print(traceback.format_exc())
+        #return {"error": "Internal error occurred during parsing"}
+        import traceback
+        print("Erro durante o parsing do currículo:")
+        traceback.print_exc()
+        return {"error": str(e)}
