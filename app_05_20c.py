@@ -14,7 +14,6 @@ app = Flask(__name__)
 # Register your external route
 app.add_url_rule('/parse-cv-to-json', view_func=parse_cv_to_json, methods=["POST"])
 
-
 def generate_report_from_data(data):
     start = time.time()
     print("Iniciando geração de relatório...")
