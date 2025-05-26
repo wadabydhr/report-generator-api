@@ -14,7 +14,7 @@ st.title("📄 Gerador de Relatórios de Candidatos")
 
 # Inputs do formulário
 uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
-language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
+report_lang = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
 company = st.text_input("🏢 Nome da empresa")
 company_title = st.text_input("💼 Título da vaga")
 
@@ -27,7 +27,7 @@ if st.button("▶️ Gerar Relatório") and uploaded_file and company and compan
             tmp_pdf_path = tmp_pdf.name
 
         # Processar PDF para gerar JSON
-        json_data = parse_cv_to_json(tmp_pdf_path,language)
+        json_data = parse_cv_to_json(tmp_pdf_path,report_lang)
         st.subheader("🔎 Dados extraídos do currículo:")
         st.json(json_data)
 
