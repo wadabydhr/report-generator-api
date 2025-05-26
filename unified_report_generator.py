@@ -7,7 +7,6 @@ import fitz  # PyMuPDF
 from openai import Client
 import traceback
 
-# --- CONSTANTS AND SCHEMA ---
 UPLOAD_FOLDER = 'uploads'
 TEMPLATE_FOLDER = 'template'
 STATIC_FOLDER = 'static'
@@ -62,6 +61,65 @@ REQUIRED_SCHEMA = {
         "language_level": ""
     }]
 }
+
+# --- Utility functions ---
+def smart_title(text):
+    if not isinstance(text, str):
+        return text
+    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas"}
+    words = text.lower().split()
+    return " ".join(
+        word if word in lowercase_exceptions else word.capitalize()
+        for word in words
+    )
+
+def format_caps(text):
+    return text.upper() if isinstance(text, str) else text
+
+def format_first(text):
+    return text.capitalize() if isinstance(text, str) else text
+
+def safe_date(text):
+    try:
+        return datetime.strptime(text, "%m/%Y")
+    except Exception:
+        return None
+
+def parse_date_safe(text):
+    try:
+        return datetime.strptime(text, "%m/%Y")
+    except:
+        return None
+
+def trim_text(text, max_chars):
+    if not isinstance(text, str):
+        return ""
+    if len(text) <= max_chars:
+        return text
+    trimmed = text[:max_chars].rsplit(" ", 1)[0]
+    return trimmed + "..."
+
+def format_report_date(lang_code):
+    today = datetime.today()
+    day = today.day
+    year = today.year
+    month_pt = [
+        "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+        "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
+    ]
+    month_en = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+    month_index = today.month - 1
+
+    def ordinal(n):
+        return f"{n}th" if 11 <= n % 100 <= 13 else f"{n}{['th','st','nd','rd','th','th','th','th','th','th'][n % 10]}"
+
+    if lang_code == "PT":
+        return f"{day} de {month_pt[month_index]} de {year}"
+    else:
+        return f"{ordinal(day)} {month_en[month_index]}, {year}"
 
 # --- UTILS ---
 
@@ -162,19 +220,71 @@ def parse_cv_to_json(file_path, report_lang):
 
 # --- REPORT GENERATION ---
 
-def generate_report_from_data(data, template_path, output_path):
+def build_context(data):
+    # Preprocess line_items for job counts, company dates, and last company logic
+    line_items = []
+    latest_date = None
+    last_company = ""
+    for item in data.get("line_items", []):
+        # Format company fields
+        item["cdd_company"] = format_caps(item.get("cdd_company", ""))
+        raw_desc = item.get("company_desc", "")
+        item["company_desc"] = trim_text(format_first(raw_desc), 89)
+        job_posts = []
+        start_dates = []
+        end_dates = []
+
+        for job in item.get("job_posts", []):
+            job["job_title"] = smart_title(job.get("job_title", ""))
+            start = safe_date(job.get("start_date", ""))
+            end_str = job.get("end_date", "")
+            end = safe_date(end_str) if isinstance(end_str, str) and end_str.lower() != "presente" else None
+
+            if start:
+                start_dates.append(start)
+            if end:
+                end_dates.append(end)
+
+            for task in job.get("job_tasks", []):
+                task["task"] = format_first(task.get("task", ""))
+
+            job_posts.append(job)
+
+        item["company_start_date"] = min(start_dates).strftime("%m/%Y") if start_dates else "N/A"
+        item["company_end_date"] = max(end_dates).strftime("%m/%Y") if end_dates else "presente"
+        item["job_count"] = len(job_posts)
+        item["job_posts"] = job_posts
+        line_items.append(item)
+
+    # Academics formatting
+    for acad in data.get("academics", []):
+        acad["academic_course"] = smart_title(acad.get("academic_course", ""))
+        acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
+
+    # Languages formatting (language table mapping is omitted for simplicity)
+    for lang in data.get("languages", []):
+        lang["language"] = smart_title(lang.get("language", ""))
+
+    # Find the last company worked at (latest end date)
+    for item in line_items:
+        end_date_str = item.get("company_end_date", "")
+        end_date = parse_date_safe(end_date_str)
+        if end_date and (latest_date is None or end_date > latest_date):
+            latest_date = end_date
+            last_company = item.get("cdd_company", "")
+
     context = {
-        "company": data.get("company", ""),
-        "company_title": data.get("company_title", ""),
-        "cdd_name": data.get("cdd_name", ""),
-        "cdd_email": data.get("cdd_email", ""),
-        "cdd_city": data.get("cdd_city", ""),
-        "cdd_state": data.get("cdd_state", ""),
+        "company": format_caps(data.get("company", "")),
+        "company_title": format_caps(data.get("company_title", "")),
+        "cdd_name": format_caps(data.get("cdd_name", "")),
+        "cdd_city": smart_title(data.get("cdd_city", "")),
+        "cdd_state": format_caps(data.get("cdd_state", "")),
         "cdd_cel": data.get("cdd_cel", ""),
+        "cdd_email": data.get("cdd_email", ""),
+        "cdd_nationality": smart_title(data.get("cdd_nationality", "")),
         "cdd_age": data.get("cdd_age", ""),
-        "cdd_nationality": data.get("cdd_nationality", ""),
-        "abt_background": data.get("abt_background", ""),
-        "bhv_profile": data.get("bhv_profile", ""),
+        "abt_background": data.get("abt_background",""),
+        "bhv_profile": data.get("bhv_profile",""),
         "job_bond": data.get("job_bond", ""),
         "job_wage": data.get("job_wage", ""),
         "job_variable": data.get("job_variable", ""),
@@ -186,31 +296,18 @@ def generate_report_from_data(data, template_path, output_path):
         "job_pension": data.get("job_pension", ""),
         "job_others": data.get("job_others", ""),
         "job_expectation": data.get("job_expectation", ""),
-        "last_company": data.get("last_company", ""),
-        "report_lang": data.get("report_lang", ""),
-        "report_date": data.get("report_date", ""),
+        "line_items": line_items,
         "academics": data.get("academics", []),
-        "languages": data.get("languages", [])
+        "languages": data.get("languages", []),
+        "last_company": last_company,
+        "report_lang": data.get("report_lang", "PT"),
+        "report_date": format_report_date(data.get("report_lang", "PT"))
     }
 
-    # Process line_items
-    line_items = []
-    for item in data.get("line_items", []):
-        job_posts = []
-        for job in item.get("job_posts", []):
-            job_posts.append({
-                "job_title": job.get("job_title", ""),
-                "start_date": job.get("start_date", ""),
-                "end_date": job.get("end_date", ""),
-                "job_tasks": job.get("job_tasks", [])
-            })
-        line_items.append({
-            "cdd_company": item.get("cdd_company", ""),
-            "company_desc": item.get("company_desc", ""),
-            "job_posts": job_posts
-        })
-    context["line_items"] = line_items
+    return context
 
+def generate_report_from_data(data, template_path, output_path):
+    context = build_context(data)
     try:
         doc = DocxTemplate(template_path)
         doc.render(context)
@@ -236,12 +333,10 @@ def run_streamlit():
 
     if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
         with st.spinner("Processando o currículo e gerando relatório..."):
-            # Salvar PDF temporariamente
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                 tmp_pdf.write(uploaded_file.read())
                 tmp_pdf_path = tmp_pdf.name
 
-            # Processar PDF para gerar JSON
             json_data = parse_cv_to_json(tmp_pdf_path, language)
             st.subheader("🔎 Dados extraídos do currículo:")
             st.json(json_data)
@@ -250,19 +345,14 @@ def run_streamlit():
                 st.error("❌ Erro retornado pelo parser:")
                 st.stop()
 
-            # Adiciona os novos campos ao JSON
             json_data["company"] = company
             json_data["company_title"] = company_title
 
-            # Escolher o template correto
             template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
-
-            # Gerar nome do arquivo
             safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
             output_filename = f"Relatorio_{safe_name}_{datetime.today().strftime('%Y%m%d')}.docx"
             output_path = os.path.join(tempfile.gettempdir(), output_filename)
 
-            # Gerar o relatório .docx
             try:
                 generate_report_from_data(json_data, template_path, output_path)
             except Exception as e:
@@ -270,7 +360,6 @@ def run_streamlit():
                 st.code(traceback.format_exc())
                 st.stop()
 
-            # Exibir link de download
             with open(output_path, "rb") as f:
                 st.download_button(
                     label="📥 Baixar Relatório",
