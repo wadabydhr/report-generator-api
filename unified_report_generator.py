@@ -253,6 +253,7 @@ def build_context(data):
         item["company_start_date"] = min(start_dates).strftime("%m/%Y") if start_dates else "N/A"
         item["company_end_date"] = max(end_dates).strftime("%m/%Y") if end_dates else "presente"
         item["job_count"] = len(job_posts)
+        print("job_count:\n", item["job_count"])
         item["job_posts"] = job_posts
         line_items.append(item)
 
