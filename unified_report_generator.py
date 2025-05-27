@@ -110,11 +110,27 @@ def parse_cv_to_json(file_path, report_lang):
             "Do not omit, rename, or add any keys."
         )
 
-        # Translation instruction based on report_lang
+        # Improved translation instruction
         if report_lang.upper() == "EN":
-            translation_instruction = "Translate all extracted values to English in the output JSON, regardless of the original language."
+            translation_instruction = (
+                "You must translate ALL string values in the output JSON to English, including:\n"
+                "- All top-level string values.\n"
+                "- All values inside the \"line_items\" list: \"cdd_company\", \"company_desc\", and recursively all \"job_posts\" fields (\"job_title\", each \"job_tasks/task\", etc).\n"
+                "- All values inside the \"academics\" list (\"academic_course\", \"academic_institution\", etc).\n"
+                "- All values inside the \"languages\" list (\"language\", etc).\n"
+                "- Any other nested string fields.\n"
+                "Do NOT translate the key names, ONLY the values. Do NOT leave any values untranslated."
+            )
         else:
-            translation_instruction = "Translate all extracted values to Portuguese in the output JSON, regardless of the original language."
+            translation_instruction = (
+                "You must translate ALL string values in the output JSON to Portuguese, including:\n"
+                "- All top-level string values.\n"
+                "- All values inside the \"line_items\" list: \"cdd_company\", \"company_desc\", and recursively all \"job_posts\" fields (\"job_title\", each \"job_tasks/task\", etc).\n"
+                "- All values inside the \"academics\" list (\"academic_course\", \"academic_institution\", etc).\n"
+                "- All values inside the \"languages\" list (\"language\", etc).\n"
+                "- Any other nested string fields.\n"
+                "Do NOT translate the key names, ONLY the values. Do NOT leave any values untranslated."
+            )
 
         user_prompt = (
             f"Extract ALL possible information from the following CV content and map it into the provided schema. "
