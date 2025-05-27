@@ -171,6 +171,7 @@ df_levels = pd.read_csv(SHEET_URL)
 df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
 
 # Create lookup dicts for PT and EN using the proper columns for titles/descriptions
+# Map: {EN Title: (PT Title, PT Desc, EN Title, EN Desc)}
 level_lookup_en = {}
 level_lookup_pt = {}
 for _, row in df_levels.iterrows():
@@ -317,6 +318,7 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         # For each language, map and add level_description and correct level title (from sheet, correct columns)
         updated_languages = []
         for lang_row in validated_data.get("languages", []):
+            # Get the normalized language_level for the report language (EN or PT)
             orig_level = lang_row.get("language_level", "")
             norm_level = normalize_language_level(orig_level, report_lang)
             lang_title, lang_desc = get_level_info_by_title(norm_level, report_lang)
