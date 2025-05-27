@@ -184,20 +184,26 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
 
         schema_example = json.dumps(REQUIRED_SCHEMA, ensure_ascii=False, indent=2)
-        system_prompt = (
-            "You are a system that converts resumes into structured JSON for automation. "
-            "You must follow exactly the structure of the provided schema. "
+        # ENHANCED Extraction prompt with language logic and task reinforcement
+        extraction_prompt = (
+            "You are a system that converts resumes (CVs) into structured JSON for automation. "
+            "You must extract all possible information from the following CV content and map it into the provided schema. "
             "All keys must be present and correctly named. If a value is missing, use an empty string, empty list, or the correct type. "
-            "Do not omit, rename, or add any keys."
-        )
-
-        user_prompt = (
-            "Extract ALL possible information from the following CV content and map it into the provided schema. "
-            "Your response must be a single well-formatted JSON object with exactly the same keys and structure as the schema below. "
-            "If you cannot fill a value, leave it blank or as an empty list/object. "
-            "Do not explain, only output the JSON object.\n\n"
+            "Do not omit, rename, or add any keys. Do not summarize or invent information."
+            "\n\n"
+            "For each company (cdd_company), extract all job positions (job_title) the candidate held. "
+            "For each job_title, extract all tasks/activities/descriptions performed by the candidate as individual items in the 'job_tasks' list. "
+            "Tasks must be separated into items according to their functional category or similarity, "
+            "and must remain as close as possible to the original text, only correcting grammar and spelling. "
+            "Do NOT summarize, merge, or transform the context of the tasks—just divide them into items according to similarity."
+            "\n\n"
+            "If the report language is 'EN', translate ALL string values in the output JSON to English, including nested/list values. "
+            "If the report language is 'PT', translate ALL string values in the output JSON to Portuguese, including nested/list values. "
+            "Do NOT translate key names, only values. Output only the JSON object."
+            "\n\n"
             "Schema example:\n"
             f"{schema_example}\n\n"
+            "Report language: " + report_lang + "\n"
             "CV Content:\n"
             f"{extracted_text}"
         )
@@ -205,8 +211,8 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "system", "content": "You output JSON for structured candidate analysis. Follow user instructions."},
+                {"role": "user", "content": extraction_prompt}
             ],
             temperature=0.3
         )
@@ -225,13 +231,15 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         if company_title is not None:
             validated_data["company_title"] = company_title
 
-        # Step 2: If EN, translate all string values in the JSON, including injected company_title.
-        if report_lang.upper() == "EN":
+        # Step 2: If EN or PT, translate all string values in the JSON, including injected company_title, to the target language.
+        if report_lang.upper() in ("EN", "PT"):
             translation_system_prompt = (
                 "You are an assistant that ONLY translates the string values in JSON objects, keeping the structure and key names unchanged."
             )
+            target_language = "English" if report_lang.upper() == "EN" else "Portuguese"
             translation_user_prompt = (
-                f"Translate ALL string values in the following JSON to English (do not touch key names, only the values, including nested and list values, and do not skip any field):\n\n"
+                f"Translate ALL string values in the following JSON to {target_language} "
+                "(do not touch key names, only the values, including nested and list values, and do not skip any field):\n\n"
                 f"{json.dumps(validated_data, ensure_ascii=False, indent=2)}"
             )
             translation_response = client.chat.completions.create(
