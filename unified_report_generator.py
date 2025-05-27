@@ -110,43 +110,19 @@ def parse_cv_to_json(file_path, report_lang):
             "Do not omit, rename, or add any keys."
         )
 
-        # Improved translation instruction
-        if report_lang.upper() == "EN":
-            translation_instruction = (
-                "You must translate ALL string values in the output JSON to English, including:\n"
-                "- All top-level string values.\n"
-                "- All values inside the \"line_items\" list: \"cdd_company\", \"company_desc\", and recursively all \"job_posts\" fields (\"job_title\", each \"job_tasks/task\", etc).\n"
-                "- All values inside the \"academics\" list (\"academic_course\", \"academic_institution\", etc).\n"
-                "- All values inside the \"languages\" list (\"language\", etc).\n"
-                "- Any other nested string fields.\n"
-                "Do NOT translate the key names, ONLY the values. Do NOT leave any values untranslated."
-            )
-        else:
-            translation_instruction = (
-                "You must translate ALL string values in the output JSON to Portuguese, including:\n"
-                "- All top-level string values.\n"
-                "- All values inside the \"line_items\" list: \"cdd_company\", \"company_desc\", and recursively all \"job_posts\" fields (\"job_title\", each \"job_tasks/task\", etc).\n"
-                "- All values inside the \"academics\" list (\"academic_course\", \"academic_institution\", etc).\n"
-                "- All values inside the \"languages\" list (\"language\", etc).\n"
-                "- Any other nested string fields.\n"
-                "Do NOT translate the key names, ONLY the values. Do NOT leave any values untranslated."
-            )
-
         user_prompt = (
-            f"Extract ALL possible information from the following CV content and map it into the provided schema. "
-            f"Your response must be a single well-formatted JSON object with exactly the same keys and structure as the schema below. "
-            f"If you cannot fill a value, leave it blank or as an empty list/object. "
-            f"Do not explain, only output the JSON object.\n\n"
-            f"Schema example:\n"
+            "Extract ALL possible information from the following CV content and map it into the provided schema. "
+            "Your response must be a single well-formatted JSON object with exactly the same keys and structure as the schema below. "
+            "If you cannot fill a value, leave it blank or as an empty list/object. "
+            "Do not explain, only output the JSON object.\n\n"
+            "Schema example:\n"
             f"{schema_example}\n\n"
-            f"Report language: {report_lang}\n"
-            f"{translation_instruction}\n"
-            f"CV Content:\n"
+            "CV Content:\n"
             f"{extracted_text}"
         )
         print("🟢 Início do parse_cv_to_json")
         print("🗂️ Caminho do arquivo:", file_path)
-        print("🌐 Idioma (report_lang):", report_lang)
+        print("🌐 Idioma:", report_lang)
         print("🧠 Preparando prompt para envio ao OpenAI")
         print("📜 Texto extraído:", extracted_text[:200])  # mostra trecho
 
@@ -160,23 +136,53 @@ def parse_cv_to_json(file_path, report_lang):
             temperature=0.3
         )
         print("📥 Resposta recebida da OpenAI.")
-        if response and hasattr(response, "choices"):
-            print("✅ Estrutura válida da resposta:", response.choices[0].message.content)
-
         if not response.choices or not hasattr(response.choices[0], "message"):
             return {"error": "Unexpected response structure from OpenAI"}
 
         json_output = response.choices[0].message.content
-        print("📥 Conteúdo bruto recebido do modelo:\n", json_output)
 
         try:
             parsed_data = json.loads(json_output)
             print("✅ JSON interpretado com sucesso.")
             validated_data = enforce_schema(parsed_data, REQUIRED_SCHEMA)
-            return validated_data
         except json.JSONDecodeError:
             print("⚠️ Falha ao converter resposta do OpenAI para JSON. Conteúdo bruto será retornado.")
             return {"error": "Could not parse response as JSON. Original content returned.", "json_result": json_output}
+
+        # NEW: If requested language is EN, translate all string values.
+        if report_lang.upper() == "EN":
+            translation_system_prompt = (
+                "You are an assistant that ONLY translates the string values in JSON objects, keeping the structure and key names unchanged."
+            )
+            translation_user_prompt = (
+                f"Translate ALL string values in the following JSON to English (do not touch key names, only the values, including nested and list values, and do not skip any field):\n\n"
+                f"{json.dumps(validated_data, ensure_ascii=False, indent=2)}"
+            )
+            print("📤 Enviando prompt para OpenAI (translation)...")
+            translation_response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": translation_system_prompt},
+                    {"role": "user", "content": translation_user_prompt}
+                ],
+                temperature=0.3
+            )
+            if translation_response.choices and hasattr(translation_response.choices[0], "message"):
+                translation_json_output = translation_response.choices[0].message.content
+                try:
+                    translated_data = json.loads(translation_json_output)
+                    print("✅ JSON traduzido com sucesso.")
+                    translated_data["report_lang"] = report_lang
+                    return translated_data
+                except Exception as e:
+                    print("⚠️ Falha ao converter JSON traduzido:", e)
+                    return {"error": "Could not parse translated JSON. Original content returned.", "json_result": translation_json_output}
+            else:
+                print("⚠️ Falha na resposta de tradução.")
+                return {"error": "Translation step failed."}
+        else:
+            validated_data["report_lang"] = report_lang
+            return validated_data
 
     except Exception as e:
         print("Erro durante o parsing do currículo:")
@@ -251,20 +257,21 @@ def run_streamlit():
     st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
     st.title("📄 Gerador de Relatórios de Candidatos")
 
-    # Use report_lang for the dropdown and throughout the code
-    report_lang = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"], key="report_lang")
+    # Inputs do formulário
+    uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
+    language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
     company = st.text_input("🏢 Nome da empresa")
     company_title = st.text_input("💼 Título da vaga")
-    uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
 
     if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
         with st.spinner("Processando o currículo e gerando relatório..."):
+            # Salvar PDF temporariamente
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                 tmp_pdf.write(uploaded_file.read())
                 tmp_pdf_path = tmp_pdf.name
 
-            # Pass report_lang to the parser and include in the JSON context
-            json_data = parse_cv_to_json(tmp_pdf_path, report_lang)
+            # Processar PDF para gerar JSON
+            json_data = parse_cv_to_json(tmp_pdf_path, language)
             st.subheader("🔎 Dados extraídos do currículo:")
             st.json(json_data)
 
@@ -275,10 +282,9 @@ def run_streamlit():
             # Adiciona os novos campos ao JSON
             json_data["company"] = company
             json_data["company_title"] = company_title
-            json_data["report_lang"] = report_lang  # Ensure this is set here
 
             # Escolher o template correto
-            template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{report_lang}.docx")
+            template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
 
             # Gerar nome do arquivo
             safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
