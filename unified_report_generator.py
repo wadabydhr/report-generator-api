@@ -6,6 +6,7 @@ from docxtpl import DocxTemplate
 import fitz  # PyMuPDF
 from openai import Client
 import traceback
+import pandas as pd
 
 # --- Utility functions ---
 def smart_title(text):
@@ -118,7 +119,8 @@ REQUIRED_SCHEMA = {
     }],
     "languages": [{
         "language": "",
-        "language_level": ""
+        "language_level": "",
+        "level_description": ""
     }]
 }
 
@@ -163,6 +165,46 @@ def translate_text(text, target_lang):
         print("Translation error:", e)
     return text
 
+# --- GOOGLE SHEET LANGUAGE LEVELS ---
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
+df_levels = pd.read_csv(SHEET_URL)
+level_map = df_levels.set_index("language_level").to_dict(orient="index")
+
+LANGUAGE_LEVELS = [
+    "Elementary (basic knowledge)",
+    "Pre-operational (basic with intermediary skill in conversation or writing)",
+    "Operational (intermediary knowledge)",
+    "Extended (intermediary with advanced skill only in conversation or writing)",
+    "Expert (advanced knowledge or native or fluent)"
+]
+
+def get_level_info(level_key, report_lang):
+    """Given a normalized level_key and report_lang, return the correct title and description."""
+    row = level_map.get(level_key)
+    if not row:
+        return "", ""
+    if report_lang.upper() == "PT":
+        return row.get("language_level_title_pt", ""), row.get("level_description_pt", "")
+    else:
+        return row.get("language_level_title_en", ""), row.get("level_description_en", "")
+
+def normalize_language_level(raw_level):
+    """Map raw extracted level to one of the 5 defined keys in level_map using best effort matching."""
+    if not raw_level:
+        return None
+    raw = raw_level.strip().lower()
+    for k in level_map.keys():
+        base = k.strip().lower()
+        if raw == base:
+            return k
+        if raw in base or base in raw:
+            return k
+    # Try even looser match
+    for k in level_map.keys():
+        if any(word in raw for word in k.lower().split()):
+            return k
+    return None
+
 # --- CV PARSING ---
 
 def parse_cv_to_json(file_path, report_lang, company_title=None):
@@ -196,6 +238,11 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             "Tasks must be separated into items according to their functional category or similarity, "
             "and must remain as close as possible to the original text, only correcting grammar and spelling. "
             "Do NOT summarize, merge, or transform the context of the tasks—just divide them into items according to similarity."
+            "\n\n"
+            "For the languages section: extract all languages and their level (language_level) the candidate describes. "
+            "Map the extracted language level to one of the following five levels exactly (case-insensitive): "
+            + "; ".join(LANGUAGE_LEVELS) +
+            "."
             "\n\n"
             "If the report language is 'EN', translate ALL string values in the output JSON to English, including nested/list values. "
             "If the report language is 'PT', translate ALL string values in the output JSON to Portuguese, including nested/list values. "
@@ -231,7 +278,22 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         if company_title is not None:
             validated_data["company_title"] = company_title
 
+        # --- LANGUAGE LEVELS POST-PROCESSING ---
+        # For each language, map and add level_description and correct level title
+        updated_languages = []
+        for lang_row in validated_data.get("languages", []):
+            level_key = normalize_language_level(lang_row.get("language_level", ""))
+            if level_key:
+                level_title, level_desc = get_level_info(level_key, report_lang)
+                lang_row["language_level"] = level_title
+                lang_row["level_description"] = level_desc
+            else:
+                lang_row["level_description"] = ""
+            updated_languages.append(lang_row)
+        validated_data["languages"] = updated_languages
+
         # Step 2: If EN or PT, translate all string values in the JSON, including injected company_title, to the target language.
+        # The prompt above should already ensure this, but to guarantee, do a final translation pass.
         if report_lang.upper() in ("EN", "PT"):
             translation_system_prompt = (
                 "You are an assistant that ONLY translates the string values in JSON objects, keeping the structure and key names unchanged."
@@ -313,7 +375,7 @@ def build_context(data):
 
     # Languages formatting
     for lang in data.get("languages", []):
-        lang["language"] = format_caps(lang.get("language", ""))
+        lang["language"] = smart_title(lang.get("language", ""))
 
     # Find the last company worked at (latest end date)
     for item in line_items:
@@ -368,7 +430,7 @@ def generate_report_from_data(data, template_path, output_path):
 def run_streamlit():
     import streamlit as st
     st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
-    st.title("Gerador de Relatórios de Candidatos")
+    st.title("📄 Gerador de Relatórios de Candidatos")
 
     uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
     language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
