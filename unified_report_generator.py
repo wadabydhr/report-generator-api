@@ -168,6 +168,7 @@ def translate_text(text, target_lang):
 # --- GOOGLE SHEET LANGUAGE LEVELS ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
 df_levels = pd.read_csv(SHEET_URL)
+df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
 level_map = df_levels.set_index("language_level").to_dict(orient="index")
 
 LANGUAGE_LEVELS = [
@@ -180,7 +181,7 @@ LANGUAGE_LEVELS = [
 
 def get_level_info(level_key, report_lang):
     """Given a normalized level_key and report_lang, return the correct title and description."""
-    row = level_map.get(level_key)
+    row = level_map.get(str(level_key))
     if not row:
         return "", ""
     if report_lang.upper() == "PT":
@@ -192,16 +193,16 @@ def normalize_language_level(raw_level):
     """Map raw extracted level to one of the 5 defined keys in level_map using best effort matching."""
     if not raw_level:
         return None
-    raw = raw_level.strip().lower()
+    raw = str(raw_level).strip().lower()
     for k in level_map.keys():
-        base = k.strip().lower()
+        base = str(k).strip().lower()
         if raw == base:
             return k
         if raw in base or base in raw:
             return k
     # Try even looser match
     for k in level_map.keys():
-        if any(word in raw for word in k.lower().split()):
+        if any(word in raw for word in str(k).lower().split()):
             return k
     return None
 
