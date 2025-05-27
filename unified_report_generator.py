@@ -170,7 +170,22 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FH
 df_levels = pd.read_csv(SHEET_URL)
 df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
 
-# Build direct mapping for PT and EN
+LANGUAGE_LEVELS_EN = [
+    "Elementary (basic knowledge)",
+    "Pre-operational (basic with intermediary skill in conversation or writing)",
+    "Operational (intermediary knowledge)",
+    "Extended (intermediary with advanced skill only in conversation or writing)",
+    "Expert (advanced knowledge or native or fluent)"
+]
+LANGUAGE_LEVELS_PT = [
+    "Elementar (conhecimento básico)",
+    "Pre-operacional (básico com habilidade intermediária em conversação ou escrita)",
+    "Operacional (conhecimento intermediário)",
+    "Intermediário (intermediário com habilidade avançada apenas em conversação ou escrita)",
+    "Avançado / Fluente (conhecimento avançado, nativo ou fluente)"
+]
+
+# Build direct mapping for PT and EN for title and description
 PT_LEVELS = {}
 EN_LEVELS = {}
 for _, row in df_levels.iterrows():
@@ -187,45 +202,29 @@ for _, row in df_levels.iterrows():
             "level_description": row.get("level_description_en", "")
         }
 
-def find_level_entry_pt(level_value):
+def find_level_entry(level_value, report_lang):
     """
-    Try to match the OpenAI-provided Portuguese level (may have accents or case diff)
-    to the PT_LEVELS keys. Returns dict or None.
-    """
-    if not level_value:
-        return None
-    key = str(level_value).strip().lower()
-    if key in PT_LEVELS:
-        return PT_LEVELS[key]
-    # Fuzzy contains
-    for k in PT_LEVELS:
-        if key in k or k in key:
-            return PT_LEVELS[k]
-    return None
-
-def find_level_entry_en(level_value):
-    """
-    Try to match the OpenAI-provided English level (may have case diff)
-    to the EN_LEVELS keys. Returns dict or None.
+    Try to match the OpenAI-provided level (may have accents or case diff) to the correct localized level.
+    Returns dict or None.
     """
     if not level_value:
         return None
     key = str(level_value).strip().lower()
-    if key in EN_LEVELS:
-        return EN_LEVELS[key]
-    # Fuzzy contains
-    for k in EN_LEVELS:
-        if key in k or k in key:
-            return EN_LEVELS[k]
+    if report_lang.upper() == "PT":
+        # Try exact and fuzzy match in PT_LEVELS
+        if key in PT_LEVELS:
+            return PT_LEVELS[key]
+        for k in PT_LEVELS:
+            if key in k or k in key:
+                return PT_LEVELS[k]
+    else:
+        # Try exact and fuzzy match in EN_LEVELS
+        if key in EN_LEVELS:
+            return EN_LEVELS[key]
+        for k in EN_LEVELS:
+            if key in k or k in key:
+                return EN_LEVELS[k]
     return None
-
-LANGUAGE_LEVELS = [
-    "Elementary (basic knowledge)",
-    "Pre-operational (basic with intermediary skill in conversation or writing)",
-    "Operational (intermediary knowledge)",
-    "Extended (intermediary with advanced skill only in conversation or writing)",
-    "Expert (advanced knowledge or native or fluent)"
-]
 
 # --- CV PARSING ---
 
@@ -248,7 +247,12 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
 
         schema_example = json.dumps(REQUIRED_SCHEMA, ensure_ascii=False, indent=2)
-        # ENHANCED Extraction prompt with language logic and task reinforcement
+        # Use correct levels in the prompt
+        if report_lang.upper() == "PT":
+            language_levels_for_prompt = LANGUAGE_LEVELS_PT
+        else:
+            language_levels_for_prompt = LANGUAGE_LEVELS_EN
+
         extraction_prompt = (
             "You are a system that converts resumes (CVs) into structured JSON for automation. "
             "You must extract all possible information from the following CV content and map it into the provided schema. "
@@ -263,7 +267,7 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             "\n\n"
             "For the languages section: extract all languages and their level (language_level) the candidate describes. "
             "Map the extracted language level to one of the following five levels exactly (case-insensitive): "
-            + "; ".join(LANGUAGE_LEVELS) +
+            + "; ".join(language_levels_for_prompt) +
             "."
             "\n\n"
             "If the report language is 'EN', translate ALL string values in the output JSON to English, including nested/list values. "
@@ -304,20 +308,12 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         updated_languages = []
         for lang_row in validated_data.get("languages", []):
             level_value = lang_row.get("language_level", "")
-            if report_lang.upper() == "PT":
-                level_entry = find_level_entry_pt(level_value)
-                if level_entry:
-                    lang_row["language_level"] = level_entry.get("language_level", level_value)
-                    lang_row["level_description"] = level_entry.get("level_description", "")
-                else:
-                    lang_row["level_description"] = ""
+            level_entry = find_level_entry(level_value, report_lang)
+            if level_entry:
+                lang_row["language_level"] = level_entry.get("language_level", level_value)
+                lang_row["level_description"] = level_entry.get("level_description", "")
             else:
-                level_entry = find_level_entry_en(level_value)
-                if level_entry:
-                    lang_row["language_level"] = level_entry.get("language_level", level_value)
-                    lang_row["level_description"] = level_entry.get("level_description", "")
-                else:
-                    lang_row["level_description"] = ""
+                lang_row["level_description"] = ""
             updated_languages.append(lang_row)
         validated_data["languages"] = updated_languages
 
