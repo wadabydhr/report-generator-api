@@ -168,7 +168,6 @@ def translate_text(text, target_lang):
 # --- GOOGLE SHEET LANGUAGE LEVELS ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
 df_levels = pd.read_csv(SHEET_URL)
-df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
 level_map = df_levels.set_index("language_level").to_dict(orient="index")
 
 LANGUAGE_LEVELS = [
@@ -180,36 +179,29 @@ LANGUAGE_LEVELS = [
 ]
 
 def get_level_info(level_key, report_lang):
-    """
-    Given a normalized level_key and report_lang, return the correct title and description
-    from the Google Sheet mapping for language level.
-    """
-    # Ensure level_key is str for matching
-    row = level_map.get(str(level_key))
+    """Given a normalized level_key and report_lang, return the correct title and description."""
+    row = level_map.get(level_key)
     if not row:
         return "", ""
-    # Always extract the level title and description from the correct columns by report_lang
     if report_lang.upper() == "PT":
-        # Columns: language_level_title_pt (B), level_description_pt (C)
         return row.get("language_level_title_pt", ""), row.get("level_description_pt", "")
     else:
-        # Columns: language_level_title_en (D), level_description_en (E)
         return row.get("language_level_title_en", ""), row.get("level_description_en", "")
 
 def normalize_language_level(raw_level):
     """Map raw extracted level to one of the 5 defined keys in level_map using best effort matching."""
     if not raw_level:
         return None
-    raw = str(raw_level).strip().lower()
+    raw = raw_level.strip().lower()
     for k in level_map.keys():
-        base = str(k).strip().lower()
+        base = k.strip().lower()
         if raw == base:
             return k
         if raw in base or base in raw:
             return k
     # Try even looser match
     for k in level_map.keys():
-        if any(word in raw for word in str(k).lower().split()):
+        if any(word in raw for word in k.lower().split()):
             return k
     return None
 
@@ -287,17 +279,16 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             validated_data["company_title"] = company_title
 
         # --- LANGUAGE LEVELS POST-PROCESSING ---
-        # For each language, map and add level_description and correct level title (from sheet, correct columns)
+        # For each language, map and add level_description and correct level title
         updated_languages = []
         for lang_row in validated_data.get("languages", []):
             level_key = normalize_language_level(lang_row.get("language_level", ""))
-            level_title, level_desc = "", ""
             if level_key:
                 level_title, level_desc = get_level_info(level_key, report_lang)
                 lang_row["language_level"] = level_title
+                lang_row["level_description"] = level_desc
             else:
-                lang_row["language_level"] = lang_row.get("language_level", "")
-            lang_row["level_description"] = level_desc
+                lang_row["level_description"] = ""
             updated_languages.append(lang_row)
         validated_data["languages"] = updated_languages
 
