@@ -169,7 +169,52 @@ def translate_text(text, target_lang):
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
 df_levels = pd.read_csv(SHEET_URL)
 df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
-level_map = df_levels.set_index("language_level").to_dict(orient="index")
+
+# Create lookup dicts for PT and EN using the proper columns for titles/descriptions
+# Map: {EN Title: (PT Title, PT Desc, EN Title, EN Desc)}
+level_lookup_en = {}
+level_lookup_pt = {}
+for _, row in df_levels.iterrows():
+    key_en = str(row.get("language_level_title_en", "")).strip()
+    key_pt = str(row.get("language_level_title_pt", "")).strip()
+    # Each dict maps both EN and PT key to the row
+    if key_en:
+        level_lookup_en[key_en.lower()] = {
+            "language_level_title_en": key_en,
+            "language_level_title_pt": str(row.get("language_level_title_pt", "")),
+            "level_description_en": str(row.get("level_description_en", "")),
+            "level_description_pt": str(row.get("level_description_pt", ""))
+        }
+    if key_pt:
+        level_lookup_pt[key_pt.lower()] = {
+            "language_level_title_en": str(row.get("language_level_title_en", "")),
+            "language_level_title_pt": key_pt,
+            "level_description_en": str(row.get("level_description_en", "")),
+            "level_description_pt": str(row.get("level_description_pt", ""))
+        }
+
+def get_level_info_by_title(level_title, report_lang):
+    """
+    Given a language_level title (already extracted), returns the correct title and description.
+    The lookup is case-insensitive and matches according to report_lang.
+    """
+    if not level_title:
+        return "", ""
+    lookup = level_lookup_pt if report_lang.upper() == "PT" else level_lookup_en
+    row = lookup.get(level_title.strip().lower())
+    if not row:
+        # Try loose match if exact not found
+        for k, v in lookup.items():
+            if level_title.strip().lower() in k or k in level_title.strip().lower():
+                row = v
+                break
+    if not row:
+        return level_title, ""
+    # Return mapped title and description based on report_lang
+    if report_lang.upper() == "PT":
+        return row["language_level_title_pt"], row["level_description_pt"]
+    else:
+        return row["language_level_title_en"], row["level_description_en"]
 
 LANGUAGE_LEVELS = [
     "Elementary (basic knowledge)",
@@ -179,39 +224,22 @@ LANGUAGE_LEVELS = [
     "Expert (advanced knowledge or native or fluent)"
 ]
 
-def get_level_info(level_key, report_lang):
-    """
-    Given a normalized level_key and report_lang, return the correct title and description
-    from the Google Sheet mapping for language level.
-    """
-    # Ensure level_key is str for matching
-    row = level_map.get(str(level_key))
-    if not row:
-        return "", ""
-    # Always extract the level title and description from the correct columns by report_lang
-    if report_lang.upper() == "PT":
-        # Columns: language_level_title_pt (B), level_description_pt (C)
-        return row.get("language_level_title_pt", ""), row.get("level_description_pt", "")
-    else:
-        # Columns: language_level_title_en (D), level_description_en (E)
-        return row.get("language_level_title_en", ""), row.get("level_description_en", "")
-
-def normalize_language_level(raw_level):
-    """Map raw extracted level to one of the 5 defined keys in level_map using best effort matching."""
+def normalize_language_level(raw_level, report_lang):
+    """Try to match the extracted language_level to the correct EN/PT Google Sheet column value."""
     if not raw_level:
-        return None
+        return ""
     raw = str(raw_level).strip().lower()
-    for k in level_map.keys():
-        base = str(k).strip().lower()
-        if raw == base:
-            return k
-        if raw in base or base in raw:
-            return k
-    # Try even looser match
-    for k in level_map.keys():
-        if any(word in raw for word in str(k).lower().split()):
-            return k
-    return None
+    lookup = level_lookup_pt if report_lang.upper() == "PT" else level_lookup_en
+    for k in lookup.keys():
+        if raw == k:
+            return lookup[k][f'language_level_title_{"pt" if report_lang.upper() == "PT" else "en"}']
+        if raw in k or k in raw:
+            return lookup[k][f'language_level_title_{"pt" if report_lang.upper() == "PT" else "en"}']
+    # Loose match: any word
+    for k in lookup.keys():
+        if any(word in raw for word in k.split()):
+            return lookup[k][f'language_level_title_{"pt" if report_lang.upper() == "PT" else "en"}']
+    return raw_level
 
 # --- CV PARSING ---
 
@@ -290,14 +318,12 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         # For each language, map and add level_description and correct level title (from sheet, correct columns)
         updated_languages = []
         for lang_row in validated_data.get("languages", []):
-            level_key = normalize_language_level(lang_row.get("language_level", ""))
-            level_title, level_desc = "", ""
-            if level_key:
-                level_title, level_desc = get_level_info(level_key, report_lang)
-                lang_row["language_level"] = level_title
-            else:
-                lang_row["language_level"] = lang_row.get("language_level", "")
-            lang_row["level_description"] = level_desc
+            # Get the normalized language_level for the report language (EN or PT)
+            orig_level = lang_row.get("language_level", "")
+            norm_level = normalize_language_level(orig_level, report_lang)
+            lang_title, lang_desc = get_level_info_by_title(norm_level, report_lang)
+            lang_row["language_level"] = lang_title
+            lang_row["level_description"] = lang_desc
             updated_languages.append(lang_row)
         validated_data["languages"] = updated_languages
 
