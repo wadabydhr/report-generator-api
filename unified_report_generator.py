@@ -170,50 +170,54 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FH
 df_levels = pd.read_csv(SHEET_URL)
 df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
 
-# Create lookup dicts for PT and EN using the proper columns for titles/descriptions
-level_lookup_en = {}
-level_lookup_pt = {}
+# Build direct mapping for PT and EN
+PT_LEVELS = {}
+EN_LEVELS = {}
 for _, row in df_levels.iterrows():
-    key_en = str(row.get("language_level_title_en", "")).strip()
-    key_pt = str(row.get("language_level_title_pt", "")).strip()
-    # Each dict maps both EN and PT key to the row
-    if key_en:
-        level_lookup_en[key_en.lower()] = {
-            "language_level_title_en": key_en,
-            "language_level_title_pt": str(row.get("language_level_title_pt", "")),
-            "level_description_en": str(row.get("level_description_en", "")),
-            "level_description_pt": str(row.get("level_description_pt", ""))
+    pt_title = str(row.get("language_level_title_pt", "")).strip().lower()
+    en_title = str(row.get("language_level_title_en", "")).strip().lower()
+    if pt_title:
+        PT_LEVELS[pt_title] = {
+            "language_level": row.get("language_level_title_pt", ""),
+            "level_description": row.get("level_description_pt", "")
         }
-    if key_pt:
-        level_lookup_pt[key_pt.lower()] = {
-            "language_level_title_en": str(row.get("language_level_title_en", "")),
-            "language_level_title_pt": key_pt,
-            "level_description_en": str(row.get("level_description_en", "")),
-            "level_description_pt": str(row.get("level_description_pt", ""))
+    if en_title:
+        EN_LEVELS[en_title] = {
+            "language_level": row.get("language_level_title_en", ""),
+            "level_description": row.get("level_description_en", "")
         }
 
-def get_level_info_by_title(level_title, report_lang):
+def find_level_entry_pt(level_value):
     """
-    Given a language_level title (already extracted), returns the correct title and description.
-    The lookup is case-insensitive and matches according to report_lang.
+    Try to match the OpenAI-provided Portuguese level (may have accents or case diff)
+    to the PT_LEVELS keys. Returns dict or None.
     """
-    if not level_title:
-        return "", ""
-    lookup = level_lookup_pt if report_lang.upper() == "PT" else level_lookup_en
-    row = lookup.get(level_title.strip().lower())
-    if not row:
-        # Try loose match if exact not found
-        for k, v in lookup.items():
-            if level_title.strip().lower() in k or k in level_title.strip().lower():
-                row = v
-                break
-    if not row:
-        return level_title, ""
-    # Return mapped title and description based on report_lang
-    if report_lang.upper() == "PT":
-        return row["language_level_title_pt"], row["level_description_pt"]
-    else:
-        return row["language_level_title_en"], row["level_description_en"]
+    if not level_value:
+        return None
+    key = str(level_value).strip().lower()
+    if key in PT_LEVELS:
+        return PT_LEVELS[key]
+    # Fuzzy contains
+    for k in PT_LEVELS:
+        if key in k or k in key:
+            return PT_LEVELS[k]
+    return None
+
+def find_level_entry_en(level_value):
+    """
+    Try to match the OpenAI-provided English level (may have case diff)
+    to the EN_LEVELS keys. Returns dict or None.
+    """
+    if not level_value:
+        return None
+    key = str(level_value).strip().lower()
+    if key in EN_LEVELS:
+        return EN_LEVELS[key]
+    # Fuzzy contains
+    for k in EN_LEVELS:
+        if key in k or k in key:
+            return EN_LEVELS[k]
+    return None
 
 LANGUAGE_LEVELS = [
     "Elementary (basic knowledge)",
@@ -222,23 +226,6 @@ LANGUAGE_LEVELS = [
     "Extended (intermediary with advanced skill only in conversation or writing)",
     "Expert (advanced knowledge or native or fluent)"
 ]
-
-def normalize_language_level(raw_level, report_lang):
-    """Try to match the extracted language_level to the correct EN/PT Google Sheet column value."""
-    if not raw_level:
-        return ""
-    raw = str(raw_level).strip().lower()
-    lookup = level_lookup_pt if report_lang.upper() == "PT" else level_lookup_en
-    for k in lookup.keys():
-        if raw == k:
-            return lookup[k][f'language_level_title_{"pt" if report_lang.upper() == "PT" else "en"}']
-        if raw in k or k in raw:
-            return lookup[k][f'language_level_title_{"pt" if report_lang.upper() == "PT" else "en"}']
-    # Loose match: any word
-    for k in lookup.keys():
-        if any(word in raw for word in k.split()):
-            return lookup[k][f'language_level_title_{"pt" if report_lang.upper() == "PT" else "en"}']
-    return raw_level
 
 # --- CV PARSING ---
 
@@ -314,19 +301,27 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             validated_data["company_title"] = company_title
 
         # --- LANGUAGE LEVELS POST-PROCESSING ---
-        # For each language, map and add level_description and correct level title (from sheet, correct columns)
         updated_languages = []
         for lang_row in validated_data.get("languages", []):
-            orig_level = lang_row.get("language_level", "")
-            norm_level = normalize_language_level(orig_level, report_lang)
-            lang_title, lang_desc = get_level_info_by_title(norm_level, report_lang)
-            lang_row["language_level"] = lang_title
-            lang_row["level_description"] = lang_desc
+            level_value = lang_row.get("language_level", "")
+            if report_lang.upper() == "PT":
+                level_entry = find_level_entry_pt(level_value)
+                if level_entry:
+                    lang_row["language_level"] = level_entry.get("language_level", level_value)
+                    lang_row["level_description"] = level_entry.get("level_description", "")
+                else:
+                    lang_row["level_description"] = ""
+            else:
+                level_entry = find_level_entry_en(level_value)
+                if level_entry:
+                    lang_row["language_level"] = level_entry.get("language_level", level_value)
+                    lang_row["level_description"] = level_entry.get("level_description", "")
+                else:
+                    lang_row["level_description"] = ""
             updated_languages.append(lang_row)
         validated_data["languages"] = updated_languages
 
         # Step 2: If EN or PT, translate all string values in the JSON, including injected company_title, to the target language.
-        # The prompt above should already ensure this, but to guarantee, do a final translation pass.
         if report_lang.upper() in ("EN", "PT"):
             translation_system_prompt = (
                 "You are an assistant that ONLY translates the string values in JSON objects, keeping the structure and key names unchanged."
