@@ -313,7 +313,7 @@ def build_context(data):
 
     # Languages formatting
     for lang in data.get("languages", []):
-        lang["language"] = smart_title(lang.get("language", ""))
+        lang["language"] = format_caps(lang.get("language", ""))
 
     # Find the last company worked at (latest end date)
     for item in line_items:
@@ -368,7 +368,7 @@ def generate_report_from_data(data, template_path, output_path):
 def run_streamlit():
     import streamlit as st
     st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
-    st.title("📄 Gerador de Relatórios de Candidatos")
+    st.title("Gerador de Relatórios de Candidatos")
 
     uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
     language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
