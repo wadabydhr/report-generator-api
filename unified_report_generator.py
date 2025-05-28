@@ -7,6 +7,7 @@ import fitz  # PyMuPDF
 from openai import Client
 import traceback
 import pandas as pd
+import re
 
 # --- Utility functions ---
 def smart_title(text):
@@ -231,6 +232,39 @@ def is_present_term(end_str, report_lang):
     else:
         return any(term == t or t in term for t in PRESENT_TERMS_EN)
 
+# --- MONTH NAME TO NUMBER ---
+MONTHS_EN = {
+    "january": "01", "february": "02", "march": "03", "april": "04", "may": "05", "june": "06",
+    "july": "07", "august": "08", "september": "09", "october": "10", "november": "11", "december": "12"
+}
+MONTHS_PT = {
+    "janeiro": "01", "fevereiro": "02", "março": "03", "marco": "03", "abril": "04", "maio": "05", "junho": "06",
+    "julho": "07", "agosto": "08", "setembro": "09", "outubro": "10", "novembro": "11", "dezembro": "12"
+}
+
+def normalize_to_mm_yyyy(date_str, report_lang):
+    if not isinstance(date_str, str):
+        return date_str
+    s = date_str.strip().lower()
+    # Try mm/yyyy already
+    if valid_mm_yyyy(s):
+        return s
+    # Look for "monthname yyyy" pattern
+    match = re.match(r"([a-zçãéíôúàõ]+)\s+(\d{4})", s)
+    if match:
+        month_name, year = match.groups()
+        if report_lang.upper() == "PT":
+            month_num = MONTHS_PT.get(month_name)
+        else:
+            month_num = MONTHS_EN.get(month_name)
+        if month_num:
+            return f"{month_num}/{year}"
+    # Look for yyyy only (no month): treat as 01/yyyy
+    match = re.match(r"(\d{4})", s)
+    if match:
+        return f"01/{match.group(1)}"
+    return date_str  # fallback, original
+
 def valid_mm_yyyy(date_str):
     if isinstance(date_str, str) and len(date_str) == 7 and date_str[2] == "/":
         mm, yyyy = date_str[:2], date_str[3:]
@@ -386,11 +420,13 @@ def build_context(data):
 
         for job in item.get("job_posts", []):
             job["job_title"] = smart_title(job.get("job_title", ""))
+
             # --- START DATE ---
             raw_start = job.get("start_date", "")
-            if valid_mm_yyyy(raw_start):
-                start_val = raw_start
-                start_dt = parse_mm_yyyy(raw_start)
+            norm_start = normalize_to_mm_yyyy(raw_start, report_lang)
+            if valid_mm_yyyy(norm_start):
+                start_val = norm_start
+                start_dt = parse_mm_yyyy(norm_start)
             else:
                 start_val = "00/0000"
                 start_dt = None
@@ -400,13 +436,14 @@ def build_context(data):
 
             # --- END DATE ---
             raw_end = job.get("end_date", "")
-            if is_present_term(raw_end, report_lang):
+            norm_end = normalize_to_mm_yyyy(raw_end, report_lang)
+            if is_present_term(norm_end, report_lang):
                 end_val = "PRESENT"
                 any_present = True
-                end_dt = None  # For comparison, handled below
-            elif valid_mm_yyyy(raw_end):
-                end_val = raw_end
-                end_dt = parse_mm_yyyy(raw_end)
+                end_dt = None
+            elif valid_mm_yyyy(norm_end):
+                end_val = norm_end
+                end_dt = parse_mm_yyyy(norm_end)
                 if end_dt:
                     end_dates.append(end_dt)
             else:
