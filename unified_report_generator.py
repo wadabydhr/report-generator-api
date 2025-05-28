@@ -12,7 +12,7 @@ import pandas as pd
 def smart_title(text):
     if not isinstance(text, str):
         return text
-    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas", "of"}
+    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas"}
     words = text.lower().split()
     return " ".join(
         word if word in lowercase_exceptions else word.capitalize()
@@ -226,6 +226,19 @@ def find_level_entry(level_value, report_lang):
                 return EN_LEVELS[k]
     return None
 
+# --- PRESENT TERMS for end_date ---
+PRESENT_TERMS_EN = ["present", "current", "currently", "actual", "nowadays", "this moment", "today"]
+PRESENT_TERMS_PT = ["presente", "atual", "atualmente", "no presente", "neste momento", "data atual", "presente momento", "agora"]
+
+def is_present_term(end_str, report_lang):
+    if not isinstance(end_str, str):
+        return False
+    term = end_str.strip().lower()
+    if report_lang.upper() == "PT":
+        return any(term == t or t in term for t in PRESENT_TERMS_PT)
+    else:
+        return any(term == t or t in term for t in PRESENT_TERMS_EN)
+
 # --- CV PARSING ---
 
 def parse_cv_to_json(file_path, report_lang, company_title=None):
@@ -259,17 +272,13 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             "All keys must be present and correctly named. If a value is missing, use an empty string, empty list, or the correct type. "
             "Do not omit, rename, or add any keys. Do not summarize or invent information."
             "\n\n"
-            "All the acronyms must be in uppercase. Eg. university name acronyms, certification name acronym and any other acronyms in the pdf file\n"
-            "Nationality (cdd_nationality), if exists, must be corrected instead to the name of the country for the language selected. Eg: Brazilian instead of Brazil.\n"
-            "\n\n"
             "For each company (cdd_company), extract all job positions (job_title) the candidate held. "
             "For each job_title, extract all tasks/activities/descriptions performed by the candidate as individual items in the 'job_tasks' list. "
             "Tasks must be separated into items according to their functional category or similarity, "
             "and must remain as close as possible to the original text, only correcting grammar and spelling. "
             "Do NOT summarize, merge, or transform the context of the tasks—just divide them into items according to similarity."
             "\n\n"
-            "For the languages section: extract all languages and their level (language_level) the candidate describes"
-            "Do not consider Portuguese language to the languages section, since all the candidates are native Brazilians.\n"
+            "For the languages section: extract all languages and their level (language_level) the candidate describes. "
             "Map the extracted language level to one of the following five levels exactly (case-insensitive): "
             + "; ".join(language_levels_for_prompt) +
             "."
@@ -277,7 +286,6 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             "If the report language is 'EN', translate ALL string values in the output JSON to English, including nested/list values. "
             "If the report language is 'PT', translate ALL string values in the output JSON to Portuguese, including nested/list values. "
             "Do NOT translate key names, only values. Output only the JSON object."
-            "For academics section: academic_conclusion must be the end year of the date year of a course when there is a range of dates, always picking the most recent year of the date of the range.\n"
             "\n\n"
             "Schema example:\n"
             f"{schema_example}\n\n"
@@ -367,7 +375,6 @@ def build_context(data):
     latest_date = None
     last_company = ""
     for item in data.get("line_items", []):
-        # Format company fields
         item["cdd_company"] = format_caps(item.get("cdd_company", ""))
         raw_desc = item.get("company_desc", "")
         item["company_desc"] = trim_text(format_first(raw_desc), 89)
@@ -378,8 +385,13 @@ def build_context(data):
         for job in item.get("job_posts", []):
             job["job_title"] = smart_title(job.get("job_title", ""))
             start = safe_date(job.get("start_date", ""))
+
             end_str = job.get("end_date", "")
-            end = safe_date(end_str) if isinstance(end_str, str) and end_str.lower() != "presente" else None
+            if is_present_term(end_str, data.get("report_lang", "PT")):
+                end = datetime.today()
+                job["end_date"] = "presente" if data.get("report_lang", "PT").upper() == "PT" else "present"
+            else:
+                end = safe_date(end_str)
 
             if start:
                 start_dates.append(start)
@@ -392,7 +404,7 @@ def build_context(data):
             job_posts.append(job)
 
         item["company_start_date"] = min(start_dates).strftime("%m/%Y") if start_dates else "N/A"
-        item["company_end_date"] = max(end_dates).strftime("%m/%Y") if end_dates else "presente"
+        item["company_end_date"] = max(end_dates).strftime("%m/%Y") if end_dates else ("presente" if data.get("report_lang", "PT").upper() == "PT" else "present")
         item["job_count"] = len(job_posts)
         item["job_posts"] = job_posts
         line_items.append(item)
@@ -459,7 +471,7 @@ def generate_report_from_data(data, template_path, output_path):
 def run_streamlit():
     import streamlit as st
     st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
-    st.title("Gerador de Relatórios de Candidatos")
+    st.title("📄 Gerador de Relatórios de Candidatos")
 
     uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
     language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
