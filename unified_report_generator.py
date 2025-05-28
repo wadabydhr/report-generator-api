@@ -258,8 +258,8 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             "You must extract all possible information from the following CV content and map it into the provided schema. "
             "All keys must be present and correctly named. If a value is missing, use an empty string, empty list, or the correct type. "
             "Do not omit, rename, or add any keys. Do not summarize or invent information."
-            "All the acronyms must be in uppercase"
-            "Nationality (cdd_nationality), if exists, must be corrected instead the name of the country for the language selected"
+            "All the acronyms must be in uppercase."
+            "Nationality (cdd_nationality), if exists, must be corrected instead the name of the country for the language selected. Eg: Brazilian instead of Brazil."
             "\n\n"
             "For each company (cdd_company), extract all job positions (job_title) the candidate held. "
             "For each job_title, extract all tasks/activities/descriptions performed by the candidate as individual items in the 'job_tasks' list. "
@@ -456,7 +456,7 @@ def generate_report_from_data(data, template_path, output_path):
 def run_streamlit():
     import streamlit as st
     st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
-    st.title("📄 Gerador de Relatórios de Candidatos")
+    st.title("Gerador de Relatórios de Candidatos")
 
     uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
     language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
