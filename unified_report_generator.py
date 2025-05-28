@@ -185,7 +185,6 @@ LANGUAGE_LEVELS_PT = [
     "Avançado / Fluente (conhecimento avançado, nativo ou fluente)"
 ]
 
-# Build direct mapping for PT and EN for title and description
 PT_LEVELS = {}
 EN_LEVELS = {}
 for _, row in df_levels.iterrows():
@@ -203,22 +202,16 @@ for _, row in df_levels.iterrows():
         }
 
 def find_level_entry(level_value, report_lang):
-    """
-    Try to match the OpenAI-provided level (may have accents or case diff) to the correct localized level.
-    Returns dict or None.
-    """
     if not level_value:
         return None
     key = str(level_value).strip().lower()
     if report_lang.upper() == "PT":
-        # Try exact and fuzzy match in PT_LEVELS
         if key in PT_LEVELS:
             return PT_LEVELS[key]
         for k in PT_LEVELS:
             if key in k or k in key:
                 return PT_LEVELS[k]
     else:
-        # Try exact and fuzzy match in EN_LEVELS
         if key in EN_LEVELS:
             return EN_LEVELS[key]
         for k in EN_LEVELS:
@@ -226,7 +219,6 @@ def find_level_entry(level_value, report_lang):
                 return EN_LEVELS[k]
     return None
 
-# --- PRESENT TERMS for end_date ---
 PRESENT_TERMS_EN = ["present", "current", "currently", "actual", "nowadays", "this moment", "today"]
 PRESENT_TERMS_PT = ["presente", "atual", "atualmente", "no presente", "neste momento", "data atual", "presente momento", "agora"]
 
@@ -238,6 +230,18 @@ def is_present_term(end_str, report_lang):
         return any(term == t or t in term for t in PRESENT_TERMS_PT)
     else:
         return any(term == t or t in term for t in PRESENT_TERMS_EN)
+
+def valid_mm_yyyy(date_str):
+    if isinstance(date_str, str) and len(date_str) == 7 and date_str[2] == "/":
+        mm, yyyy = date_str[:2], date_str[3:]
+        return mm.isdigit() and yyyy.isdigit() and 1 <= int(mm) <= 12
+    return False
+
+def parse_mm_yyyy(date_str):
+    try:
+        return datetime.strptime(date_str, "%m/%Y")
+    except Exception:
+        return None
 
 # --- CV PARSING ---
 
@@ -260,7 +264,6 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
 
         schema_example = json.dumps(REQUIRED_SCHEMA, ensure_ascii=False, indent=2)
-        # Use correct levels in the prompt
         if report_lang.upper() == "PT":
             language_levels_for_prompt = LANGUAGE_LEVELS_PT
         else:
@@ -313,11 +316,9 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         except json.JSONDecodeError:
             return {"error": "Could not parse response as JSON. Original content returned.", "json_result": json_output}
 
-        # Inject or correct company_title before translation if present
         if company_title is not None:
             validated_data["company_title"] = company_title
 
-        # --- LANGUAGE LEVELS POST-PROCESSING ---
         updated_languages = []
         for lang_row in validated_data.get("languages", []):
             level_value = lang_row.get("language_level", "")
@@ -330,7 +331,6 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             updated_languages.append(lang_row)
         validated_data["languages"] = updated_languages
 
-        # Step 2: If EN or PT, translate all string values in the JSON, including injected company_title, to the target language.
         if report_lang.upper() in ("EN", "PT"):
             translation_system_prompt = (
                 "You are an assistant that ONLY translates the string values in JSON objects, keeping the structure and key names unchanged."
@@ -370,10 +370,11 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
 # --- REPORT GENERATION ---
 
 def build_context(data):
-    # Preprocess line_items for job counts, company dates, and last company logic
     line_items = []
     latest_date = None
     last_company = ""
+    report_lang = data.get("report_lang", "PT")
+
     for item in data.get("line_items", []):
         item["cdd_company"] = format_caps(item.get("cdd_company", ""))
         raw_desc = item.get("company_desc", "")
@@ -381,30 +382,62 @@ def build_context(data):
         job_posts = []
         start_dates = []
         end_dates = []
+        any_present = False
 
         for job in item.get("job_posts", []):
             job["job_title"] = smart_title(job.get("job_title", ""))
-            start = safe_date(job.get("start_date", ""))
-
-            end_str = job.get("end_date", "")
-            if is_present_term(end_str, data.get("report_lang", "PT")):
-                end = datetime.today()
-                job["end_date"] = "presente" if data.get("report_lang", "PT").upper() == "PT" else "present"
+            # --- START DATE ---
+            raw_start = job.get("start_date", "")
+            if valid_mm_yyyy(raw_start):
+                start_val = raw_start
+                start_dt = parse_mm_yyyy(raw_start)
             else:
-                end = safe_date(end_str)
+                start_val = "00/0000"
+                start_dt = None
+            job["start_date"] = start_val
+            if start_val != "00/0000" and start_dt:
+                start_dates.append(start_dt)
 
-            if start:
-                start_dates.append(start)
-            if end:
-                end_dates.append(end)
+            # --- END DATE ---
+            raw_end = job.get("end_date", "")
+            if is_present_term(raw_end, report_lang):
+                end_val = "PRESENT"
+                any_present = True
+                end_dt = None  # For comparison, handled below
+            elif valid_mm_yyyy(raw_end):
+                end_val = raw_end
+                end_dt = parse_mm_yyyy(raw_end)
+                if end_dt:
+                    end_dates.append(end_dt)
+            else:
+                end_val = "00/0000"
+                end_dt = None
+            job["end_date"] = end_val
+
+            if end_val == "PRESENT":
+                any_present = True
+            elif end_val != "00/0000" and end_dt:
+                end_dates.append(end_dt)
 
             for task in job.get("job_tasks", []):
                 task["task"] = format_first(task.get("task", ""))
 
             job_posts.append(job)
 
-        item["company_start_date"] = min(start_dates).strftime("%m/%Y") if start_dates else "N/A"
-        item["company_end_date"] = max(end_dates).strftime("%m/%Y") if end_dates else ("presente" if data.get("report_lang", "PT").upper() == "PT" else "present")
+        # --- COMPANY START DATE ---
+        if start_dates:
+            item["company_start_date"] = min(start_dates).strftime("%m/%Y")
+        else:
+            item["company_start_date"] = "00/0000"
+
+        # --- COMPANY END DATE ---
+        if any_present:
+            item["company_end_date"] = "PRESENT"
+        elif end_dates:
+            item["company_end_date"] = max(end_dates).strftime("%m/%Y")
+        else:
+            item["company_end_date"] = "00/0000"
+
         item["job_count"] = len(job_posts)
         item["job_posts"] = job_posts
         line_items.append(item)
@@ -418,12 +451,18 @@ def build_context(data):
     for lang in data.get("languages", []):
         lang["language"] = smart_title(lang.get("language", ""))
 
-    # Find the last company worked at (latest end date)
+    def end_cmp(end_str):
+        if end_str == "PRESENT":
+            return (2, None)
+        elif valid_mm_yyyy(end_str):
+            return (1, parse_mm_yyyy(end_str))
+        else:
+            return (0, None)
+
     for item in line_items:
-        end_date_str = item.get("company_end_date", "")
-        end_date = parse_date_safe(end_date_str)
-        if end_date and (latest_date is None or end_date > latest_date):
-            latest_date = end_date
+        end_str = item.get("company_end_date", "")
+        if latest_date is None or end_cmp(end_str) > end_cmp(latest_date):
+            latest_date = end_str
             last_company = item.get("cdd_company", "")
 
     context = {
@@ -484,7 +523,6 @@ def run_streamlit():
                 tmp_pdf.write(uploaded_file.read())
                 tmp_pdf_path = tmp_pdf.name
 
-            # Pass company_title for translation and injection before report generation
             json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title)
             st.subheader("🔎 Dados extraídos do currículo:")
             st.json(json_data)
