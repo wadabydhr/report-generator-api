@@ -12,7 +12,7 @@ import pandas as pd
 def smart_title(text):
     if not isinstance(text, str):
         return text
-    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas"}
+    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas", "of"}
     words = text.lower().split()
     return " ".join(
         word if word in lowercase_exceptions else word.capitalize()
@@ -258,6 +258,8 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             "You must extract all possible information from the following CV content and map it into the provided schema. "
             "All keys must be present and correctly named. If a value is missing, use an empty string, empty list, or the correct type. "
             "Do not omit, rename, or add any keys. Do not summarize or invent information."
+            "All the acronyms must be in uppercase"
+            "Nationality (cdd_nationality), if exists, must be corrected instead the name of the country for the language selected"
             "\n\n"
             "For each company (cdd_company), extract all job positions (job_title) the candidate held. "
             "For each job_title, extract all tasks/activities/descriptions performed by the candidate as individual items in the 'job_tasks' list. "
@@ -265,7 +267,7 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             "and must remain as close as possible to the original text, only correcting grammar and spelling. "
             "Do NOT summarize, merge, or transform the context of the tasks—just divide them into items according to similarity."
             "\n\n"
-            "For the languages section: extract all languages and their level (language_level) the candidate describes. "
+            "For the languages section: extract all languages and their level (language_level) the candidate describes except Portuguese language"
             "Map the extracted language level to one of the following five levels exactly (case-insensitive): "
             + "; ".join(language_levels_for_prompt) +
             "."
