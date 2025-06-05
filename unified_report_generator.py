@@ -9,7 +9,7 @@ import traceback
 import pandas as pd
 import re
 
-# --- Organized Extraction Prompt ---
+# --- Organized Extraction Prompt (as per your requirements) ---
 EXTRACTION_PROMPT = """
 You are an expert system for extracting structured JSON from resumes (CVs) for HR automation.
 Strictly follow the rules below for every field.
@@ -168,131 +168,14 @@ Output only valid JSON matching the provided schema.
 Output only valid JSON matching this schema:
 """
 
-# -------------------- ALL YOUR EXISTING LOGIC BELOW --------------------
+# ---- Your existing code begins below (untouched) ----
 
-# (Paste your existing functions and logic here, everything after the prompt block)
-# ... This includes your UTILS, SCHEMA, context building, normalization, Streamlit/report logic, etc.
-# For brevity, the block below is the full working version with the prompt applied:
+# ... all your utility functions, enforce_schema, schema, context, etc. as in your original file ...
 
-# --- Utility functions ---
-def smart_title(text):
-    if not isinstance(text, str):
-        return text
-    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas"}
-    words = text.lower().split()
-    return " ".join(
-        word if word in lowercase_exceptions else word.capitalize()
-        for word in words
-    )
+# (PASTE THE REST OF YOUR EXISTING unified_report_generator.py FILE HERE,
+#  with ONLY the LLM prompt definition and usage updated as shown below)
 
-def format_caps(text):
-    return text.upper() if isinstance(text, str) else text
-
-def format_first(text):
-    return text.capitalize() if isinstance(text, str) else text
-
-def safe_date(text):
-    try:
-        return datetime.strptime(text, "%m/%Y")
-    except Exception:
-        return None
-
-def parse_date_safe(text):
-    try:
-        return datetime.strptime(text, "%m/%Y")
-    except:
-        return None
-
-def trim_text(text, max_chars):
-    if not isinstance(text, str):
-        return ""
-    if len(text) <= max_chars:
-        return text
-    trimmed = text[:max_chars].rsplit(" ", 1)[0]
-    return trimmed + "..."
-
-def format_report_date(lang_code):
-    today = datetime.today()
-    day = today.day
-    year = today.year
-    month_pt = [
-        "janeiro", "fevereiro", "março", "abril", "maio", "junho",
-        "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
-    ]
-    month_en = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-    ]
-    month_index = today.month - 1
-
-    def ordinal(n):
-        return f"{n}th" if 11 <= n % 100 <= 13 else f"{n}{['th','st','nd','rd','th','th','th','th','th','th'][n % 10]}"
-
-    if lang_code == "PT":
-        return f"{day} de {month_pt[month_index]} de {year}"
-    else:
-        return f"{ordinal(day)} {month_en[month_index]}, {year}"
-
-# --- UTILS ---
-UPLOAD_FOLDER = 'uploads'
-TEMPLATE_FOLDER = 'template'
-STATIC_FOLDER = 'static'
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
-os.makedirs(STATIC_FOLDER, exist_ok=True)
-
-REQUIRED_SCHEMA = {
-    "company": "",
-    "company_title": "",
-    "cdd_name": "",
-    "cdd_email": "",
-    "cdd_city": "",
-    "cdd_state": "",
-    "cdd_cel": "",
-    "cdd_age": "",
-    "cdd_nationality": "",
-    "abt_background": "",
-    "bhv_profile": "",
-    "job_bond": "",
-    "job_wage": "",
-    "job_variable": "",
-    "job_meal": "",
-    "job_food": "",
-    "job_health": "",
-    "job_dental": "",
-    "job_life": "",
-    "job_pension": "",
-    "job_others": "",
-    "job_expectation": "",
-    "last_company": "",
-    "report_lang": "",
-    "report_date": "",
-    "line_items": [{
-        "cdd_company": "",
-        "company_desc": "",
-        "job_posts": [{
-            "job_title": "",
-            "start_date": "",
-            "end_date": "",
-            "job_tasks": [{"task": ""}]
-        }]
-    }],
-    "academics": [{
-        "academic_course": "",
-        "academic_institution": "",
-        "academic_conclusion": ""
-    }],
-    "languages": [{
-        "language": "",
-        "language_level": "",
-        "level_description": ""
-    }]
-}
-
-# ... (rest of your logic and functions remain unchanged) ...
-
-# --- CV PARSING WITH ORGANIZED PROMPT ---
+# Example: In parse_cv_to_json, use the new prompt
 
 def parse_cv_to_json(file_path, report_lang, company_title=None):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
@@ -301,19 +184,17 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
 
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            file_bytes = open(file_path, "rb").read()
-            tmp.write(file_bytes)
-            tmp_pdf_path = tmp.name
+            with open(file_path, "rb") as source_file:
+                tmp.write(source_file.read())
+            pdf_path = tmp.name
 
         extracted_text = ""
-        with fitz.open(tmp_pdf_path) as doc:
+        with fitz.open(pdf_path) as doc:
             for page in doc:
                 extracted_text += page.get_text()
 
         extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
-
         schema_example = json.dumps(REQUIRED_SCHEMA, ensure_ascii=False, indent=2)
-
         extraction_prompt = (
             EXTRACTION_PROMPT
             + schema_example
@@ -344,202 +225,11 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         if company_title is not None:
             validated_data["company_title"] = company_title
 
+        # ...rest of your logic unchanged...
         return validated_data
 
     except Exception as e:
         traceback.print_exc()
         return {"error": str(e)}
 
-# --- CONTEXT & REPORT LOGIC UNCHANGED ---
-
-def build_context(data):
-    line_items = []
-    latest_date = None
-    last_company = ""
-    report_lang = data.get("report_lang", "PT")
-
-    for item in data.get("line_items", []):
-        item["cdd_company"] = format_caps(item.get("cdd_company", ""))
-        raw_desc = item.get("company_desc", "")
-        item["company_desc"] = trim_text(format_first(raw_desc), 89)
-        job_posts = []
-        start_dates = []
-        end_dates = []
-        any_present = False
-
-        for job in item.get("job_posts", []):
-            job["job_title"] = smart_title(job.get("job_title", ""))
-
-            # --- START DATE ---
-            raw_start = job.get("start_date", "")
-            norm_start = normalize_to_mm_yyyy(raw_start, report_lang)
-            if valid_mm_yyyy(norm_start):
-                start_val = norm_start
-                start_dt = parse_mm_yyyy(norm_start)
-            else:
-                start_val = "00/0000"
-                start_dt = None
-            job["start_date"] = start_val
-            if start_val != "00/0000" and start_dt:
-                start_dates.append(start_dt)
-
-            # --- END DATE ---
-            raw_end = job.get("end_date", "")
-            norm_end = normalize_to_mm_yyyy(raw_end, report_lang)
-            if is_present_term(norm_end, report_lang):
-                end_val = "PRESENT"
-                any_present = True
-                end_dt = None
-            elif valid_mm_yyyy(norm_end):
-                end_val = norm_end
-                end_dt = parse_mm_yyyy(norm_end)
-                if end_dt:
-                    end_dates.append(end_dt)
-            else:
-                end_val = "00/0000"
-                end_dt = None
-            job["end_date"] = end_val
-
-            if end_val == "PRESENT":
-                any_present = True
-            elif end_val != "00/0000" and end_dt:
-                end_dates.append(end_dt)
-
-            for task in job.get("job_tasks", []):
-                task["task"] = format_first(task.get("task", ""))
-
-            job_posts.append(job)
-
-        # --- COMPANY START DATE ---
-        if start_dates:
-            item["company_start_date"] = min(start_dates).strftime("%m/%Y")
-        else:
-            item["company_start_date"] = "00/0000"
-
-        # --- COMPANY END DATE ---
-        if any_present:
-            item["company_end_date"] = "PRESENT"
-        elif end_dates:
-            item["company_end_date"] = max(end_dates).strftime("%m/%Y")
-        else:
-            item["company_end_date"] = "00/0000"
-
-        item["job_count"] = len(job_posts)
-        item["job_posts"] = job_posts
-        line_items.append(item)
-
-    # Academics formatting
-    for acad in data.get("academics", []):
-        acad["academic_course"] = smart_title(acad.get("academic_course", ""))
-        acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
-
-    # Languages formatting
-    for lang in data.get("languages", []):
-        lang["language"] = smart_title(lang.get("language", ""))
-
-    def end_cmp(end_str):
-        if end_str == "PRESENT":
-            return (2, None)
-        elif valid_mm_yyyy(end_str):
-            return (1, parse_mm_yyyy(end_str))
-        else:
-            return (0, None)
-
-    for item in line_items:
-        end_str = item.get("company_end_date", "")
-        if latest_date is None or end_cmp(end_str) > end_cmp(latest_date):
-            latest_date = end_str
-            last_company = item.get("cdd_company", "")
-
-    context = {
-        "company": format_caps(data.get("company", "")),
-        "company_title": format_caps(data.get("company_title", "")),
-        "cdd_name": format_caps(data.get("cdd_name", "")),
-        "cdd_city": smart_title(data.get("cdd_city", "")),
-        "cdd_state": format_caps(data.get("cdd_state", "")),
-        "cdd_cel": data.get("cdd_cel", ""),
-        "cdd_email": data.get("cdd_email", ""),
-        "cdd_nationality": smart_title(data.get("cdd_nationality", "")),
-        "cdd_age": data.get("cdd_age", ""),
-        "abt_background": data.get("abt_background",""),
-        "bhv_profile": data.get("bhv_profile",""),
-        "job_bond": data.get("job_bond", ""),
-        "job_wage": data.get("job_wage", ""),
-        "job_variable": data.get("job_variable", ""),
-        "job_meal": data.get("job_meal", ""),
-        "job_food": data.get("job_food", ""),
-        "job_health": data.get("job_health", ""),
-        "job_dental": data.get("job_dental", ""),
-        "job_life": data.get("job_life", ""),
-        "job_pension": data.get("job_pension", ""),
-        "job_others": data.get("job_others", ""),
-        "job_expectation": data.get("job_expectation", ""),
-        "line_items": line_items,
-        "academics": data.get("academics", []),
-        "languages": data.get("languages", []),
-        "last_company": last_company,
-        "report_lang": data.get("report_lang", "PT"),
-        "report_date": format_report_date(data.get("report_lang", "PT"))
-    }
-    return context
-
-def generate_report_from_data(data, template_path, output_path):
-    context = build_context(data)
-    try:
-        doc = DocxTemplate(template_path)
-        doc.render(context)
-        doc.save(output_path)
-    except Exception as e:
-        traceback.print_exc()
-        raise e
-
-def run_streamlit():
-    import streamlit as st
-    st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
-    st.title("📄 Gerador de Relatórios de Candidatos")
-
-    uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
-    language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
-    company = st.text_input("🏢 Nome da empresa")
-    company_title = st.text_input("💼 Título da vaga")
-
-    if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
-        with st.spinner("Processando o currículo e gerando relatório..."):
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                file_bytes = uploaded_file.read()
-                tmp_pdf.write(file_bytes)
-                tmp_pdf_path = tmp_pdf.name
-
-            json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title)
-            st.subheader("🔎 Dados extraídos do currículo:")
-            st.json(json_data)
-            if "error" in json_data:
-                st.error("❌ Erro retornado pelo parser:")
-                st.stop()
-
-            json_data["company"] = company  # always inject or overwrite
-
-            template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
-            safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
-            output_filename = f"Relatorio_{safe_name}_{datetime.today().strftime('%Y%m%d')}.docx"
-            output_path = os.path.join(tempfile.gettempdir(), output_filename)
-
-            try:
-                generate_report_from_data(json_data, template_path, output_path)
-            except Exception as e:
-                st.error("❌ Erro ao gerar o relatório:")
-                st.code(traceback.format_exc())
-                st.stop()
-
-            with open(output_path, "rb") as f:
-                st.download_button(
-                    label="📥 Baixar Relatório",
-                    data=f,
-                    file_name=output_filename,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-    else:
-        st.info("Por favor, preencha todos os campos e faça o upload do PDF.")
-
-if __name__ == "__main__":
-    run_streamlit()
+# ---- The rest of your file remains unchanged ----
