@@ -29,9 +29,9 @@ Output only valid JSON matching the provided schema.
 # FIELD-SPECIFIC RULES
 
 ## company
-- The official name of the candidate's most recent employer.
+- The official name of the company hiring for a job position.
 - Output in UPPERCASE.
-- If not present, output "".
+- If not present, output "Beyond HR".
 
 ## company_title
 - The job title or position being applied for.
@@ -47,6 +47,7 @@ Output only valid JSON matching the provided schema.
 - Must be a valid email address.
 - If multiple found, use the first.
 - If not found, output "".
+- Apply hyperlink mailto with the email address.
 
 ## cdd_cel
 - Extract only digits, plus (+), and spaces allowed.
@@ -61,7 +62,7 @@ Output only valid JSON matching the provided schema.
 - Integer only. If not found, output "".
 
 ## cdd_nationality
-- Use the demonym (e.g., "Brazilian", "Brasileiro"), not the country name.
+- Use the demonym (e.g., "Brazilian", "Brasileiro"), not the country name. Don't put the country name but the nationality.
 - Must be in the report language.
 - If not found, output "".
 
@@ -394,11 +395,15 @@ def is_present_term(end_str, report_lang):
 # --- MONTH NAME TO NUMBER ---
 MONTHS_EN = {
     "january": "01", "february": "02", "march": "03", "april": "04", "may": "05", "june": "06",
-    "july": "07", "august": "08", "september": "09", "october": "10", "november": "11", "december": "12"
+    "july": "07", "august": "08", "september": "09", "october": "10", "november": "11", "december": "12",
+    "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
+    "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12"
 }
 MONTHS_PT = {
     "janeiro": "01", "fevereiro": "02", "março": "03", "marco": "03", "abril": "04", "maio": "05", "junho": "06",
-    "julho": "07", "agosto": "08", "setembro": "09", "outubro": "10", "novembro": "11", "dezembro": "12"
+    "julho": "07", "agosto": "08", "setembro": "09", "outubro": "10", "novembro": "11", "dezembro": "12",
+    "jan": "01", "fev": "02", "mar": "03", "abr": "04", "mai": "05", "jun": "06",
+    "jul": "07", "ago": "08", "set": "09", "out": "10", "nov": "11", "dez": "12"
 }
 
 def normalize_to_mm_yyyy(date_str, report_lang):
