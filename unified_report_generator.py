@@ -168,14 +168,275 @@ Output only valid JSON matching the provided schema.
 Output only valid JSON matching this schema:
 """
 
-# ---- Your existing code begins below (untouched) ----
+# --- Utility functions ---
+def smart_title(text):
+    if not isinstance(text, str):
+        return text
+    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas"}
+    words = text.lower().split()
+    return " ".join(
+        word if word in lowercase_exceptions else word.capitalize()
+        for word in words
+    )
 
-# ... all your utility functions, enforce_schema, schema, context, etc. as in your original file ...
+def format_caps(text):
+    return text.upper() if isinstance(text, str) else text
 
-# (PASTE THE REST OF YOUR EXISTING unified_report_generator.py FILE HERE,
-#  with ONLY the LLM prompt definition and usage updated as shown below)
+def format_first(text):
+    return text.capitalize() if isinstance(text, str) else text
 
-# Example: In parse_cv_to_json, use the new prompt
+def safe_date(text):
+    try:
+        return datetime.strptime(text, "%m/%Y")
+    except Exception:
+        return None
+
+def parse_date_safe(text):
+    try:
+        return datetime.strptime(text, "%m/%Y")
+    except:
+        return None
+
+def trim_text(text, max_chars):
+    if not isinstance(text, str):
+        return ""
+    if len(text) <= max_chars:
+        return text
+    trimmed = text[:max_chars].rsplit(" ", 1)[0]
+    return trimmed + "..."
+
+def format_report_date(lang_code):
+    today = datetime.today()
+    day = today.day
+    year = today.year
+    month_pt = [
+        "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+        "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"
+    ]
+    month_en = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+    month_index = today.month - 1
+
+    def ordinal(n):
+        return f"{n}th" if 11 <= n % 100 <= 13 else f"{n}{['th','st','nd','rd','th','th','th','th','th','th'][n % 10]}"
+
+    if lang_code == "PT":
+        return f"{day} de {month_pt[month_index]} de {year}"
+    else:
+        return f"{ordinal(day)} {month_en[month_index]}, {year}"
+
+# --- UTILS ---
+UPLOAD_FOLDER = 'uploads'
+TEMPLATE_FOLDER = 'template'
+STATIC_FOLDER = 'static'
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
+os.makedirs(STATIC_FOLDER, exist_ok=True)
+
+REQUIRED_SCHEMA = {
+    "company": "",
+    "company_title": "",
+    "cdd_name": "",
+    "cdd_email": "",
+    "cdd_city": "",
+    "cdd_state": "",
+    "cdd_cel": "",
+    "cdd_age": "",
+    "cdd_nationality": "",
+    "abt_background": "",
+    "bhv_profile": "",
+    "job_bond": "",
+    "job_wage": "",
+    "job_variable": "",
+    "job_meal": "",
+    "job_food": "",
+    "job_health": "",
+    "job_dental": "",
+    "job_life": "",
+    "job_pension": "",
+    "job_others": "",
+    "job_expectation": "",
+    "last_company": "",
+    "report_lang": "",
+    "report_date": "",
+    "line_items": [{
+        "cdd_company": "",
+        "company_desc": "",
+        "job_posts": [{
+            "job_title": "",
+            "start_date": "",
+            "end_date": "",
+            "job_tasks": [{"task": ""}]
+        }]
+    }],
+    "academics": [{
+        "academic_course": "",
+        "academic_institution": "",
+        "academic_conclusion": ""
+    }],
+    "languages": [{
+        "language": "",
+        "language_level": "",
+        "level_description": ""
+    }]
+}
+
+def enforce_schema(data, schema):
+    if isinstance(schema, dict):
+        result = {}
+        for key, default in schema.items():
+            if key in data:
+                result[key] = enforce_schema(data[key], default)
+            else:
+                result[key] = enforce_schema(default, default)
+        return result
+    elif isinstance(schema, list):
+        if not isinstance(data, list) or not data:
+            return schema
+        template = schema[0]
+        return [enforce_schema(item, template) for item in data]
+    else:
+        return data if data is not None else schema
+
+def translate_text(text, target_lang):
+    if not text or text.strip() == "":
+        return text
+    client = Client(api_key=os.getenv("OPENAI_API_KEY"))
+    sys_prompt = (
+        f"You are a translation assistant. Translate the following text to {target_lang.upper()} in a formal, business-appropriate way. "
+        "Return only the translated text, without quotes or explanations."
+    )
+    user_prompt = text
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.3
+        )
+        if response.choices and hasattr(response.choices[0], "message"):
+            return response.choices[0].message.content.strip()
+    except Exception as e:
+        print("Translation error:", e)
+    return text
+
+# --- GOOGLE SHEET LANGUAGE LEVELS ---
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
+df_levels = pd.read_csv(SHEET_URL)
+df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
+
+LANGUAGE_LEVELS_EN = [
+    "Elementary (basic knowledge)",
+    "Pre-operational (basic with intermediary skill in conversation or writing)",
+    "Operational (intermediary knowledge)",
+    "Extended (intermediary with advanced skill only in conversation or writing)",
+    "Expert (advanced knowledge or native or fluent)"
+]
+LANGUAGE_LEVELS_PT = [
+    "Elementar (conhecimento básico)",
+    "Pre-operacional (básico com habilidade intermediária em conversação ou escrita)",
+    "Operacional (conhecimento intermediário)",
+    "Intermediário (intermediário com habilidade avançada apenas em conversação ou escrita)",
+    "Avançado / Fluente (conhecimento avançado, nativo ou fluente)"
+]
+
+PT_LEVELS = {}
+EN_LEVELS = {}
+for _, row in df_levels.iterrows():
+    pt_title = str(row.get("language_level_title_pt", "")).strip().lower()
+    en_title = str(row.get("language_level_title_en", "")).strip().lower()
+    if pt_title:
+        PT_LEVELS[pt_title] = {
+            "language_level": row.get("language_level_title_pt", ""),
+            "level_description": row.get("level_description_pt", "")
+        }
+    if en_title:
+        EN_LEVELS[en_title] = {
+            "language_level": row.get("language_level_title_en", ""),
+            "level_description": row.get("level_description_en", "")
+        }
+
+def find_level_entry(level_value, report_lang):
+    if not level_value:
+        return None
+    key = str(level_value).strip().lower()
+    if report_lang.upper() == "PT":
+        if key in PT_LEVELS:
+            return PT_LEVELS[key]
+        for k in PT_LEVELS:
+            if key in k or k in key:
+                return PT_LEVELS[k]
+    else:
+        if key in EN_LEVELS:
+            return EN_LEVELS[key]
+        for k in EN_LEVELS:
+            if key in k or k in key:
+                return EN_LEVELS[k]
+    return None
+
+PRESENT_TERMS_EN = ["present", "current", "currently", "actual", "nowadays", "this moment", "today"]
+PRESENT_TERMS_PT = ["presente", "atual", "atualmente", "no presente", "neste momento", "data atual", "presente momento", "agora"]
+
+def is_present_term(end_str, report_lang):
+    if not isinstance(end_str, str):
+        return False
+    term = end_str.strip().lower()
+    if report_lang.upper() == "PT":
+        return any(term == t or t in term for t in PRESENT_TERMS_PT)
+    else:
+        return any(term == t or t in term for t in PRESENT_TERMS_EN)
+
+# --- MONTH NAME TO NUMBER ---
+MONTHS_EN = {
+    "january": "01", "february": "02", "march": "03", "april": "04", "may": "05", "june": "06",
+    "july": "07", "august": "08", "september": "09", "october": "10", "november": "11", "december": "12"
+}
+MONTHS_PT = {
+    "janeiro": "01", "fevereiro": "02", "março": "03", "marco": "03", "abril": "04", "maio": "05", "junho": "06",
+    "julho": "07", "agosto": "08", "setembro": "09", "outubro": "10", "novembro": "11", "dezembro": "12"
+}
+
+def normalize_to_mm_yyyy(date_str, report_lang):
+    if not isinstance(date_str, str):
+        return date_str
+    s = date_str.strip().lower()
+    # Try mm/yyyy already
+    if valid_mm_yyyy(s):
+        return s
+    # Look for "monthname yyyy" pattern
+    match = re.match(r"([a-zçãéíôúàõ]+)\s+(\d{4})", s)
+    if match:
+        month_name, year = match.groups()
+        if report_lang.upper() == "PT":
+            month_num = MONTHS_PT.get(month_name)
+        else:
+            month_num = MONTHS_EN.get(month_name)
+        if month_num:
+            return f"{month_num}/{year}"
+    # Look for yyyy only (no month): treat as 01/yyyy
+    match = re.match(r"(\d{4})", s)
+    if match:
+        return f"01/{match.group(1)}"
+    return date_str  # fallback, original
+
+def valid_mm_yyyy(date_str):
+    if isinstance(date_str, str) and len(date_str) == 7 and date_str[2] == "/":
+        mm, yyyy = date_str[:2], date_str[3:]
+        return mm.isdigit() and yyyy.isdigit() and 1 <= int(mm) <= 12
+    return False
+
+def parse_mm_yyyy(date_str):
+    try:
+        return datetime.strptime(date_str, "%m/%Y")
+    except Exception:
+        return None
+
+# --- CV PARSING ---
 
 def parse_cv_to_json(file_path, report_lang, company_title=None):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
@@ -183,15 +444,26 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         return {"error": "Missing CV file"}
 
     try:
+        # Always read the latest file
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+
+        # Create a NEW temp file for this process to avoid stuck cache/content
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            with open(file_path, "rb") as source_file:
-                tmp.write(source_file.read())
-            pdf_path = tmp.name
+            tmp.write(file_bytes)
+            tmp.flush()
+            tmp_pdf_path = tmp.name
 
         extracted_text = ""
-        with fitz.open(pdf_path) as doc:
+        with fitz.open(tmp_pdf_path) as doc:
             for page in doc:
                 extracted_text += page.get_text()
+
+        # Optional: Clean up temp file after use
+        try:
+            os.remove(tmp_pdf_path)
+        except Exception:
+            pass
 
         extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
         schema_example = json.dumps(REQUIRED_SCHEMA, ensure_ascii=False, indent=2)
@@ -225,11 +497,210 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         if company_title is not None:
             validated_data["company_title"] = company_title
 
-        # ...rest of your logic unchanged...
         return validated_data
 
     except Exception as e:
         traceback.print_exc()
         return {"error": str(e)}
 
-# ---- The rest of your file remains unchanged ----
+# --- REPORT GENERATION ---
+
+def build_context(data):
+    line_items = []
+    latest_date = None
+    last_company = ""
+    report_lang = data.get("report_lang", "PT")
+
+    for item in data.get("line_items", []):
+        item["cdd_company"] = format_caps(item.get("cdd_company", ""))
+        raw_desc = item.get("company_desc", "")
+        item["company_desc"] = trim_text(format_first(raw_desc), 89)
+        job_posts = []
+        start_dates = []
+        end_dates = []
+        any_present = False
+
+        for job in item.get("job_posts", []):
+            job["job_title"] = smart_title(job.get("job_title", ""))
+
+            # --- START DATE ---
+            raw_start = job.get("start_date", "")
+            norm_start = normalize_to_mm_yyyy(raw_start, report_lang)
+            if valid_mm_yyyy(norm_start):
+                start_val = norm_start
+                start_dt = parse_mm_yyyy(norm_start)
+            else:
+                start_val = "00/0000"
+                start_dt = None
+            job["start_date"] = start_val
+            if start_val != "00/0000" and start_dt:
+                start_dates.append(start_dt)
+
+            # --- END DATE ---
+            raw_end = job.get("end_date", "")
+            norm_end = normalize_to_mm_yyyy(raw_end, report_lang)
+            if is_present_term(norm_end, report_lang):
+                end_val = "PRESENT"
+                any_present = True
+                end_dt = None
+            elif valid_mm_yyyy(norm_end):
+                end_val = norm_end
+                end_dt = parse_mm_yyyy(norm_end)
+                if end_dt:
+                    end_dates.append(end_dt)
+            else:
+                end_val = "00/0000"
+                end_dt = None
+            job["end_date"] = end_val
+
+            if end_val == "PRESENT":
+                any_present = True
+            elif end_val != "00/0000" and end_dt:
+                end_dates.append(end_dt)
+
+            for task in job.get("job_tasks", []):
+                task["task"] = format_first(task.get("task", ""))
+
+            job_posts.append(job)
+
+        # --- COMPANY START DATE ---
+        if start_dates:
+            item["company_start_date"] = min(start_dates).strftime("%m/%Y")
+        else:
+            item["company_start_date"] = "00/0000"
+
+        # --- COMPANY END DATE ---
+        if any_present:
+            item["company_end_date"] = "PRESENT"
+        elif end_dates:
+            item["company_end_date"] = max(end_dates).strftime("%m/%Y")
+        else:
+            item["company_end_date"] = "00/0000"
+
+        item["job_count"] = len(job_posts)
+        item["job_posts"] = job_posts
+        line_items.append(item)
+
+    # Academics formatting
+    for acad in data.get("academics", []):
+        acad["academic_course"] = smart_title(acad.get("academic_course", ""))
+        acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
+
+    # Languages formatting
+    for lang in data.get("languages", []):
+        lang["language"] = smart_title(lang.get("language", ""))
+
+    def end_cmp(end_str):
+        if end_str == "PRESENT":
+            return (2, None)
+        elif valid_mm_yyyy(end_str):
+            return (1, parse_mm_yyyy(end_str))
+        else:
+            return (0, None)
+
+    for item in line_items:
+        end_str = item.get("company_end_date", "")
+        if latest_date is None or end_cmp(end_str) > end_cmp(latest_date):
+            latest_date = end_str
+            last_company = item.get("cdd_company", "")
+
+    context = {
+        "company": format_caps(data.get("company", "")),
+        "company_title": format_caps(data.get("company_title", "")),
+        "cdd_name": format_caps(data.get("cdd_name", "")),
+        "cdd_city": smart_title(data.get("cdd_city", "")),
+        "cdd_state": format_caps(data.get("cdd_state", "")),
+        "cdd_cel": data.get("cdd_cel", ""),
+        "cdd_email": data.get("cdd_email", ""),
+        "cdd_nationality": smart_title(data.get("cdd_nationality", "")),
+        "cdd_age": data.get("cdd_age", ""),
+        "abt_background": data.get("abt_background",""),
+        "bhv_profile": data.get("bhv_profile",""),
+        "job_bond": data.get("job_bond", ""),
+        "job_wage": data.get("job_wage", ""),
+        "job_variable": data.get("job_variable", ""),
+        "job_meal": data.get("job_meal", ""),
+        "job_food": data.get("job_food", ""),
+        "job_health": data.get("job_health", ""),
+        "job_dental": data.get("job_dental", ""),
+        "job_life": data.get("job_life", ""),
+        "job_pension": data.get("job_pension", ""),
+        "job_others": data.get("job_others", ""),
+        "job_expectation": data.get("job_expectation", ""),
+        "line_items": line_items,
+        "academics": data.get("academics", []),
+        "languages": data.get("languages", []),
+        "last_company": last_company,
+        "report_lang": data.get("report_lang", "PT"),
+        "report_date": format_report_date(data.get("report_lang", "PT"))
+    }
+    return context
+
+def generate_report_from_data(data, template_path, output_path):
+    context = build_context(data)
+    try:
+        doc = DocxTemplate(template_path)
+        doc.render(context)
+        doc.save(output_path)
+    except Exception as e:
+        traceback.print_exc()
+        raise e
+
+def run_streamlit():
+    import streamlit as st
+    st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
+    st.title("📄 Gerador de Relatórios de Candidatos")
+
+    uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
+    language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
+    company = st.text_input("🏢 Nome da empresa")
+    company_title = st.text_input("💼 Título da vaga")
+
+    if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
+        with st.spinner("Processando o currículo e gerando relatório..."):
+            file_bytes = uploaded_file.read()
+            # Always write a new temp file for each upload
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                tmp_pdf.write(file_bytes)
+                tmp_pdf.flush()
+                tmp_pdf_path = tmp_pdf.name
+
+            json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title)
+            # Clean up temp file right after parse
+            try:
+                os.remove(tmp_pdf_path)
+            except Exception:
+                pass
+
+            st.subheader("🔎 Dados extraídos do currículo:")
+            st.json(json_data)
+            if "error" in json_data:
+                st.error("❌ Erro retornado pelo parser:")
+                st.stop()
+
+            json_data["company"] = company  # always inject or overwrite
+
+            template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
+            safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
+            output_filename = f"Relatorio_{safe_name}_{datetime.today().strftime('%Y%m%d')}.docx"
+            output_path = os.path.join(tempfile.gettempdir(), output_filename)
+
+            try:
+                generate_report_from_data(json_data, template_path, output_path)
+            except Exception as e:
+                st.error("❌ Erro ao gerar o relatório:")
+                st.code(traceback.format_exc())
+                st.stop()
+
+            with open(output_path, "rb") as f:
+                st.download_button(
+                    label="📥 Baixar Relatório",
+                    data=f,
+                    file_name=output_filename,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+    else:
+        st.info("Por favor, preencha todos os campos e faça o upload do PDF.")
+
+if __name__ == "__main__":
+    run_streamlit()
