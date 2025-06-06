@@ -697,13 +697,19 @@ def run_streamlit():
                 st.code(traceback.format_exc())
                 st.stop()
 
-            with open(output_path, "rb") as f:
+            # --- FIX: Always read the docx as bytes for Streamlit download ---
+            try:
+                with open(output_path, "rb") as f:
+                    file_bytes = f.read()
                 st.download_button(
                     label="📥 Baixar Relatório",
-                    data=f,
+                    data=file_bytes,
                     file_name=output_filename,
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
+            except Exception as e:
+                st.error("❌ Erro ao baixar o relatório:")
+                st.code(traceback.format_exc())
     else:
         st.info("Por favor, preencha todos os campos e faça o upload do PDF.")
 
