@@ -656,25 +656,53 @@ def run_streamlit():
             output_filename = f"Relatorio_{safe_name}_{datetime.today().strftime('%Y%m%d')}.docx"
             output_path = os.path.join(tempfile.gettempdir(), output_filename)
 
+            # --- Diagnostics: Template checks ---
+            st.info(f"📄 Caminho do template utilizado: `{template_path}`")
+            if not os.path.isfile(template_path):
+                st.error(f"❌ Template file does not exist: {template_path}")
+                st.stop()
+            try:
+                with open(template_path, "rb") as f:
+                    header = f.read(4)
+                st.info(f"📄 Primeiros bytes do template: {header}")
+                if header != b'PK\x03\x04':
+                    st.error("❌ Template file is not a valid DOCX (ZIP format).")
+                    st.stop()
+                # Show template size for diagnostics
+                st.info(f"📄 Tamanho do arquivo template: {os.path.getsize(template_path)} bytes")
+                # Show undeclared template variables if possible
+                try:
+                    doc = DocxTemplate(template_path)
+                    undeclared = doc.get_undeclared_template_variables()
+                    if undeclared:
+                        st.warning(f"⚠️ Template placeholders not provided in context: {undeclared}")
+                except Exception as e:
+                    st.warning(f"⚠️ Não foi possível checar placeholders do template: {e}")
+            except Exception as e:
+                st.error(f"❌ Could not read template file: {e}")
+                st.stop()
+            # --- End Diagnostics: Template checks ---
+
             try:
                 generate_report_from_data(json_data, template_path, output_path)
+                # --- Diagnostics: Output file checks ---
+                if not os.path.exists(output_path):
+                    st.error("❌ O arquivo DOCX gerado não foi encontrado.")
+                    st.stop()
+                file_size = os.path.getsize(output_path)
+                st.info(f"📄 Tamanho do arquivo DOCX gerado: {file_size} bytes")
+                st.info(f"📄 Caminho do arquivo gerado: `{output_path}`")
             except Exception as e:
                 st.error("❌ Erro ao gerar o relatório:")
                 st.code(traceback.format_exc())
                 st.stop()
 
-            # Read the DOCX as bytes (not as file object) for Streamlit download
+            # Read the DOCX as bytes for Streamlit download
             try:
-                # Defensive: Ensure DOCX was written and is valid before serving
-                if not os.path.exists(output_path):
-                    st.error("❌ O arquivo DOCX gerado não foi encontrado.")
-                    st.stop()
-                file_size = os.path.getsize(output_path)
-                if file_size < 4096:
-                    st.error(f"❌ O arquivo DOCX gerado é muito pequeno ({file_size} bytes) e pode estar corrompido.")
-                    st.stop()
                 with open(output_path, "rb") as f:
                     file_bytes = f.read()
+                # Show first bytes of generated file for diagnostics
+                st.info(f"📄 Primeiros bytes do DOCX gerado: {file_bytes[:4]}")
                 if not file_bytes.startswith(b'PK\x03\x04'):
                     st.error("❌ O arquivo gerado não é um DOCX válido (espera-se PK header).")
                     st.stop()
