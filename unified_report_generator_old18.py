@@ -9,7 +9,7 @@ import traceback
 import pandas as pd
 import re
 
-# --- Organized Extraction Prompt (as per your requirements) ---
+# --- Extraction Prompt ---
 EXTRACTION_PROMPT = """
 You are an expert system for extracting structured JSON from resumes (CVs) for HR automation.
 Strictly follow the rules below for every field.
@@ -169,7 +169,64 @@ Output only valid JSON matching the provided schema.
 Output only valid JSON matching this schema:
 """
 
-# --- Utility functions ---
+# --- Constants, utility functions, schema, and helpers ---
+
+UPLOAD_FOLDER = 'uploads'
+TEMPLATE_FOLDER = 'template'
+STATIC_FOLDER = 'static'
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
+os.makedirs(STATIC_FOLDER, exist_ok=True)
+
+REQUIRED_SCHEMA = {
+    "company": "",
+    "company_title": "",
+    "cdd_name": "",
+    "cdd_email": "",
+    "cdd_city": "",
+    "cdd_state": "",
+    "cdd_cel": "",
+    "cdd_age": "",
+    "cdd_nationality": "",
+    "abt_background": "",
+    "bhv_profile": "",
+    "job_bond": "",
+    "job_wage": "",
+    "job_variable": "",
+    "job_meal": "",
+    "job_food": "",
+    "job_health": "",
+    "job_dental": "",
+    "job_life": "",
+    "job_pension": "",
+    "job_others": "",
+    "job_expectation": "",
+    "last_company": "",
+    "report_lang": "",
+    "report_date": "",
+    "line_items": [{
+        "cdd_company": "",
+        "company_desc": "",
+        "job_posts": [{
+            "job_title": "",
+            "start_date": "",
+            "end_date": "",
+            "job_tasks": [{"task": ""}]
+        }]
+    }],
+    "academics": [{
+        "academic_course": "",
+        "academic_institution": "",
+        "academic_conclusion": ""
+    }],
+    "languages": [{
+        "language": "",
+        "language_level": "",
+        "level_description": ""
+    }]
+}
+
 def smart_title(text):
     if not isinstance(text, str):
         return text
@@ -228,63 +285,6 @@ def format_report_date(lang_code):
     else:
         return f"{ordinal(day)} {month_en[month_index]}, {year}"
 
-# --- UTILS ---
-UPLOAD_FOLDER = 'uploads'
-TEMPLATE_FOLDER = 'template'
-STATIC_FOLDER = 'static'
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
-os.makedirs(STATIC_FOLDER, exist_ok=True)
-
-REQUIRED_SCHEMA = {
-    "company": "",
-    "company_title": "",
-    "cdd_name": "",
-    "cdd_email": "",
-    "cdd_city": "",
-    "cdd_state": "",
-    "cdd_cel": "",
-    "cdd_age": "",
-    "cdd_nationality": "",
-    "abt_background": "",
-    "bhv_profile": "",
-    "job_bond": "",
-    "job_wage": "",
-    "job_variable": "",
-    "job_meal": "",
-    "job_food": "",
-    "job_health": "",
-    "job_dental": "",
-    "job_life": "",
-    "job_pension": "",
-    "job_others": "",
-    "job_expectation": "",
-    "last_company": "",
-    "report_lang": "",
-    "report_date": "",
-    "line_items": [{
-        "cdd_company": "",
-        "company_desc": "",
-        "job_posts": [{
-            "job_title": "",
-            "start_date": "",
-            "end_date": "",
-            "job_tasks": [{"task": ""}]
-        }]
-    }],
-    "academics": [{
-        "academic_course": "",
-        "academic_institution": "",
-        "academic_conclusion": ""
-    }],
-    "languages": [{
-        "language": "",
-        "language_level": "",
-        "level_description": ""
-    }]
-}
-
 def enforce_schema(data, schema):
     if isinstance(schema, dict):
         result = {}
@@ -302,31 +302,7 @@ def enforce_schema(data, schema):
     else:
         return data if data is not None else schema
 
-def translate_text(text, target_lang):
-    if not text or text.strip() == "":
-        return text
-    client = Client(api_key=os.getenv("OPENAI_API_KEY"))
-    sys_prompt = (
-        f"You are a translation assistant. Translate the following text to {target_lang.upper()} in a formal, business-appropriate way. "
-        "Return only the translated text, without quotes or explanations."
-    )
-    user_prompt = text
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": sys_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.3
-        )
-        if response.choices and hasattr(response.choices[0], "message"):
-            return response.choices[0].message.content.strip()
-    except Exception as e:
-        print("Translation error:", e)
-    return text
-
-# --- GOOGLE SHEET LANGUAGE LEVELS ---
+# ... [Other utility functions: translate_text, language levels, months, parsing, etc.] ...
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
 df_levels = pd.read_csv(SHEET_URL)
 df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
@@ -392,7 +368,6 @@ def is_present_term(end_str, report_lang):
     else:
         return any(term == t or t in term for t in PRESENT_TERMS_EN)
 
-# --- MONTH NAME TO NUMBER ---
 MONTHS_EN = {
     "january": "01", "february": "02", "march": "03", "april": "04", "may": "05", "june": "06",
     "july": "07", "august": "08", "september": "09", "october": "10", "november": "11", "december": "12",
@@ -441,19 +416,16 @@ def parse_mm_yyyy(date_str):
     except Exception:
         return None
 
-# --- CV PARSING ---
-
+# --- CV Parsing (LLM call) ---
 def parse_cv_to_json(file_path, report_lang, company_title=None):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
     if not file_path:
         return {"error": "Missing CV file"}
 
     try:
-        # Always read the latest file
         with open(file_path, "rb") as f:
             file_bytes = f.read()
 
-        # Create a NEW temp file for this process to avoid stuck cache/content
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(file_bytes)
             tmp.flush()
@@ -464,7 +436,7 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             for page in doc:
                 extracted_text += page.get_text()
 
-        # Optional: Clean up temp file after use
+        # Clean up temp file after use
         try:
             os.remove(tmp_pdf_path)
         except Exception:
@@ -508,8 +480,7 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         traceback.print_exc()
         return {"error": str(e)}
 
-# --- REPORT GENERATION ---
-
+# --- Report generation ---
 def build_context(data):
     line_items = []
     latest_date = None
@@ -528,7 +499,6 @@ def build_context(data):
         for job in item.get("job_posts", []):
             job["job_title"] = smart_title(job.get("job_title", ""))
 
-            # --- START DATE ---
             raw_start = job.get("start_date", "")
             norm_start = normalize_to_mm_yyyy(raw_start, report_lang)
             if valid_mm_yyyy(norm_start):
@@ -541,7 +511,6 @@ def build_context(data):
             if start_val != "00/0000" and start_dt:
                 start_dates.append(start_dt)
 
-            # --- END DATE ---
             raw_end = job.get("end_date", "")
             norm_end = normalize_to_mm_yyyy(raw_end, report_lang)
             if is_present_term(norm_end, report_lang):
@@ -568,13 +537,11 @@ def build_context(data):
 
             job_posts.append(job)
 
-        # --- COMPANY START DATE ---
         if start_dates:
             item["company_start_date"] = min(start_dates).strftime("%m/%Y")
         else:
             item["company_start_date"] = "00/0000"
 
-        # --- COMPANY END DATE ---
         if any_present:
             item["company_end_date"] = "PRESENT"
         elif end_dates:
@@ -586,12 +553,10 @@ def build_context(data):
         item["job_posts"] = job_posts
         line_items.append(item)
 
-    # Academics formatting
     for acad in data.get("academics", []):
         acad["academic_course"] = smart_title(acad.get("academic_course", ""))
         acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
 
-    # Languages formatting
     for lang in data.get("languages", []):
         lang["language"] = smart_title(lang.get("language", ""))
 
@@ -651,6 +616,7 @@ def generate_report_from_data(data, template_path, output_path):
         traceback.print_exc()
         raise e
 
+# --- Main Streamlit UI and download logic ---
 def run_streamlit():
     import streamlit as st
     st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
@@ -664,14 +630,14 @@ def run_streamlit():
     if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
         with st.spinner("Processando o currículo e gerando relatório..."):
             file_bytes = uploaded_file.read()
-            # Always write a new temp file for each upload
+            # Save PDF to temp file
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                 tmp_pdf.write(file_bytes)
                 tmp_pdf.flush()
                 tmp_pdf_path = tmp_pdf.name
 
             json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title)
-            # Clean up temp file right after parse
+            # Clean up PDF temp file after parse
             try:
                 os.remove(tmp_pdf_path)
             except Exception:
@@ -697,10 +663,21 @@ def run_streamlit():
                 st.code(traceback.format_exc())
                 st.stop()
 
-            # --- FIX: Always read the docx as bytes for Streamlit download ---
+            # Read the DOCX as bytes (not as file object) for Streamlit download
             try:
+                # Defensive: Ensure DOCX was written and is valid before serving
+                if not os.path.exists(output_path):
+                    st.error("❌ O arquivo DOCX gerado não foi encontrado.")
+                    st.stop()
+                file_size = os.path.getsize(output_path)
+                if file_size < 4096:
+                    st.error(f"❌ O arquivo DOCX gerado é muito pequeno ({file_size} bytes) e pode estar corrompido.")
+                    st.stop()
                 with open(output_path, "rb") as f:
                     file_bytes = f.read()
+                if not file_bytes.startswith(b'PK\x03\x04'):
+                    st.error("❌ O arquivo gerado não é um DOCX válido (espera-se PK header).")
+                    st.stop()
                 st.download_button(
                     label="📥 Baixar Relatório",
                     data=file_bytes,
