@@ -584,7 +584,7 @@ def build_context(data):
         "cdd_city": smart_title(data.get("cdd_city", "")),
         "cdd_state": format_caps(data.get("cdd_state", "")),
         "cdd_ddi": data.get("cdd_ddi", ""),
-        "cdd_ddd": data.get("cdd_ddd", ""),        
+        "cdd_ddd": " " + data.get("cdd_ddd", ""),        
         "cdd_cel": data.get("cdd_cel", ""),
         "cdd_email": data.get("cdd_email", ""),
         "cdd_nationality": smart_title(data.get("cdd_nationality", "")),
