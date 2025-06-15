@@ -150,18 +150,18 @@ Output only valid JSON matching the provided schema.
 - All languages the candidate lists.
 
 ### languages[].language
-- Title Case. Must be a valid language. Portuguese language can not be part of languages array since it is mandatory.
+- Title Case. Must be a valid language.
 
 ### languages[].language_level
 - Must match exactly one of:
-  - If basic knowledge must be either "Elementary" for report_lang=EN or "Elementar" for report_lang=PT.
-  - If basic with intermediary skill in conversation or writing must be either "Pre-operational" for report_lang=EN or "Pre-operacional" for report_lang=PT.
-  - If intermediary knowledge must be either "Operational" for report_lang=EN or "Operacional" for report_lang=PT.
-  - If intermediary with advanced skill only in conversation or writing must be einther "Extended" for report_lang=EN or "Intermediário" for report_lang=PT.
-  - If advanced knowledge or native or fluent must be either "Expert" for report_lang=EN or "Avançado / Fluente" for report_lang=PT.
+  - Elementary (basic knowledge)
+  - Pre-operational (basic with intermediary skill in conversation or writing)
+  - Operational (intermediary knowledge)
+  - Extended (intermediary with advanced skill only in conversation or writing)
+  - Expert (advanced knowledge or native or fluent)
 
 ### languages[].level_description
-- Use the standard description for the language level and report language according to PT_LEVELS or EN_LEVELS from code.
+- Use the standard description for the language level and report language.
 - If not found, output "".
 
 # OUTPUT FORMAT
@@ -476,6 +476,20 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         if company_title is not None:
             validated_data["company_title"] = company_title
 
+        # --- Language level normalization added here ---
+        # Normalize language_level and level_description for each language entry
+        languages = validated_data.get("languages", [])
+        report_lang_val = validated_data.get("report_lang", "PT")
+        for lang in languages:
+            level_entry = find_level_entry(lang.get("language_level"), report_lang_val)
+            if level_entry:
+                lang["language_level"] = level_entry["language_level"]
+                lang["level_description"] = level_entry["level_description"]
+            else:
+                # If not found, blank description as per schema
+                lang["level_description"] = ""
+            lang["language"] = smart_title(lang.get("language", ""))
+
         return validated_data
 
     except Exception as e:
@@ -559,7 +573,14 @@ def build_context(data):
         acad["academic_course"] = smart_title(acad.get("academic_course", ""))
         acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
 
+    # --- Ensure language level/description normalization for output context as well ---
     for lang in data.get("languages", []):
+        level_entry = find_level_entry(lang.get("language_level"), data.get("report_lang", "PT"))
+        if level_entry:
+            lang["language_level"] = level_entry["language_level"]
+            lang["level_description"] = level_entry["level_description"]
+        else:
+            lang["level_description"] = ""
         lang["language"] = smart_title(lang.get("language", ""))
 
     def end_cmp(end_str):
@@ -584,10 +605,10 @@ def build_context(data):
         "cdd_state": format_caps(data.get("cdd_state", "")),
         #"cdd_ddi": data.get("cdd_ddi", "") + " ",
         "cdd_ddi": (data.get("cdd_ddi", "") + " ") if data.get("cdd_ddi", "") else "",
-        "cdd_ddd": (data.get("cdd_ddd", "") + " ") if data.get("cdd_ddd", "") else "",
+        "cdd_ddd": data.get("cdd_ddd", "") + " ",
         "cdd_cel": data.get("cdd_cel", ""),
         "cdd_email": data.get("cdd_email", ""),
-        "cdd_nationality": (smart_title(data.get("cdd_nationality", "")) + " ") if data.get("cdd_nationality", "") else "",
+        "cdd_nationality": smart_title(data.get("cdd_nationality", "")) + " ",
         "cdd_age": data.get("cdd_age", ""),
         "cdd_personal": " " + data.get("cdd_personal", ""),
         "abt_background": data.get("abt_background",""),
