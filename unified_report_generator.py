@@ -2,7 +2,7 @@ import os
 import json
 import tempfile
 from datetime import datetime
-from docxtpl import DocxTemplate, RichText
+from docxtpl import DocxTemplate
 import fitz  # PyMuPDF
 from openai import Client
 import traceback
@@ -47,7 +47,6 @@ Output only valid JSON matching the provided schema.
 - Must be a valid email address.
 - If multiple found, use the first.
 - If not found, output "".
-
 
 ## cdd_cel
 - Extract only digits, plus (+), and spaces allowed.
@@ -563,14 +562,19 @@ def build_context(data):
     for lang in data.get("languages", []):
         lang["language"] = smart_title(lang.get("language", ""))
 
-    # --- Email link logic: convert cdd_email to RichText mailto: if present ---
-    email_raw = data.get("cdd_email", "")
-    email_addr = None
-    if email_raw:
-        # Remove any HTML mailto wrapper and just get address if present
-        import re
-        match = re.search(r'[\w\.\-+]+@[\w\.\-]+\.\w+', email_raw)
-        email_addr = match.group(0) if match else None
+    def end_cmp(end_str):
+        if end_str == "PRESENT":
+            return (2, None)
+        elif valid_mm_yyyy(end_str):
+            return (1, parse_mm_yyyy(end_str))
+        else:
+            return (0, None)
+
+    for item in line_items:
+        end_str = item.get("company_end_date", "")
+        if latest_date is None or end_cmp(end_str) > end_cmp(latest_date):
+            latest_date = end_str
+            last_company = item.get("cdd_company", "")
 
     context = {
         "company": format_caps(data.get("company", "")),
@@ -581,8 +585,7 @@ def build_context(data):
         "cdd_ddi": data.get("cdd_ddi", "") + " ",
         "cdd_ddd": data.get("cdd_ddd", "") + " ",
         "cdd_cel": data.get("cdd_cel", ""),
-        # --- Insert email as RichText mailto link if valid, else empty string ---
-        "cdd_email": RichText(email_addr, url_id=f"mailto:{email_addr}") if email_addr else "",
+        "cdd_email": data.get("cdd_email", ""),
         "cdd_nationality": smart_title(data.get("cdd_nationality", "")) + " ",
         "cdd_age": data.get("cdd_age", ""),
         "cdd_personal": " " + data.get("cdd_personal", ""),
