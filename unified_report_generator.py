@@ -150,25 +150,23 @@ Output only valid JSON matching the provided schema.
 - All languages the candidate lists.
 
 ### languages[].language
-- Title Case. Must be a valid language. Portuguese language can not be part of languages array since it is mandatory.
+- Title Case. Must be a valid language.
 
 ### languages[].language_level
 - Must match exactly one of:
   - If basic knowledge must be either "Elementary" for report_lang=EN or "Elementar" for report_lang=PT.
   - If basic with intermediary skill in conversation or writing must be either "Pre-operational" for report_lang=EN or "Pre-operacional" for report_lang=PT.
   - If intermediary knowledge must be either "Operational" for report_lang=EN or "Operacional" for report_lang=PT.
-  - If intermediary with advanced skill only in conversation or writing must be einther "Extended" for report_lang=EN or "Intermediário" for report_lang=PT.
+  - If intermediary with advanced skill only in conversation or writing must be either "Extended" for report_lang=EN or "Intermediário" for report_lang=PT.
   - If advanced knowledge or native or fluent must be either "Expert" for report_lang=EN or "Avançado / Fluente" for report_lang=PT.
 
 ### languages[].level_description
-- Use the standard description for the language level and report language according to PT_LEVELS or EN_LEVELS from code.
+- Use the standard description for the language level and report language.
 - If not found, output "".
 
 # OUTPUT FORMAT
 Output only valid JSON matching this schema:
 """
-
-# --- Constants, utility functions, schema, and helpers ---
 
 UPLOAD_FOLDER = 'uploads'
 TEMPLATE_FOLDER = 'template'
@@ -304,25 +302,9 @@ def enforce_schema(data, schema):
     else:
         return data if data is not None else schema
 
-# ... [Other utility functions: translate_text, language levels, months, parsing, etc.] ...
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
 df_levels = pd.read_csv(SHEET_URL)
-df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
-
-LANGUAGE_LEVELS_EN = [
-    "Elementary (basic knowledge)",
-    "Pre-operational (basic with intermediary skill in conversation or writing)",
-    "Operational (intermediary knowledge)",
-    "Extended (intermediary with advanced skill only in conversation or writing)",
-    "Expert (advanced knowledge or native or fluent)"
-]
-LANGUAGE_LEVELS_PT = [
-    "Elementar (conhecimento básico)",
-    "Pre-operacional (básico com habilidade intermediária em conversação ou escrita)",
-    "Operacional (conhecimento intermediário)",
-    "Intermediário (intermediário com habilidade avançada apenas em conversação ou escrita)",
-    "Avançado / Fluente (conhecimento avançado, nativo ou fluente)"
-]
+df_levels["language_level"] = df_levels["language_level"].astype(str)
 
 PT_LEVELS = {}
 EN_LEVELS = {}
@@ -339,6 +321,48 @@ for _, row in df_levels.iterrows():
             "language_level": row.get("language_level_title_en", ""),
             "level_description": row.get("level_description_en", "")
         }
+
+# Canonical mapping logic for matching LLM output to canonical levels
+CANONICAL_LANGUAGE_LEVELS = [
+    {
+        "en": "Elementary",
+        "pt": "Elementar",
+        "matches": ["elementary", "elementar", "basic", "básico"],
+    },
+    {
+        "en": "Pre-operational",
+        "pt": "Pre-operacional",
+        "matches": ["pre-operational", "pre operacional", "preoperational", "pre-operacional", "básico com intermediário", "basic with intermediary"],
+    },
+    {
+        "en": "Operational",
+        "pt": "Operacional",
+        "matches": ["operational", "operacional", "intermediary", "intermediário", "intermediaria"],
+    },
+    {
+        "en": "Extended",
+        "pt": "Intermediário",
+        "matches": ["extended", "intermediário avançado", "intermediary advanced", "advanced intermediary", "intermediário com habilidade avançada", "intermediary with advanced skill", "extended knowledge"],
+    },
+    {
+        "en": "Expert",
+        "pt": "Avançado / Fluente",
+        "matches": ["expert", "advanced", "avançado", "fluente", "fluent", "native"],
+    },
+]
+
+def canonicalize_language_level(raw_level, report_lang):
+    if not isinstance(raw_level, str):
+        return ""
+    raw_level = raw_level.strip().lower()
+    lang_key = "pt" if report_lang.upper() == "PT" else "en"
+    for lvl in CANONICAL_LANGUAGE_LEVELS:
+        if raw_level == lvl[lang_key].lower():
+            return lvl[lang_key]
+        for pattern in lvl["matches"]:
+            if pattern in raw_level:
+                return lvl[lang_key]
+    return ""
 
 def find_level_entry(level_value, report_lang):
     if not level_value:
@@ -387,10 +411,8 @@ def normalize_to_mm_yyyy(date_str, report_lang):
     if not isinstance(date_str, str):
         return date_str
     s = date_str.strip().lower()
-    # Try mm/yyyy already
     if valid_mm_yyyy(s):
         return s
-    # Look for "monthname yyyy" pattern
     match = re.match(r"([a-zçãéíôúàõ]+)\s+(\d{4})", s)
     if match:
         month_name, year = match.groups()
@@ -400,11 +422,10 @@ def normalize_to_mm_yyyy(date_str, report_lang):
             month_num = MONTHS_EN.get(month_name)
         if month_num:
             return f"{month_num}/{year}"
-    # Look for yyyy only (no month): treat as 01/yyyy
     match = re.match(r"(\d{4})", s)
     if match:
         return f"01/{match.group(1)}"
-    return date_str  # fallback, original
+    return date_str
 
 def valid_mm_yyyy(date_str):
     if isinstance(date_str, str) and len(date_str) == 7 and date_str[2] == "/":
@@ -418,7 +439,6 @@ def parse_mm_yyyy(date_str):
     except Exception:
         return None
 
-# --- CV Parsing (LLM call) ---
 def parse_cv_to_json(file_path, report_lang, company_title=None):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
     if not file_path:
@@ -438,7 +458,6 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             for page in doc:
                 extracted_text += page.get_text()
 
-        # Clean up temp file after use
         try:
             os.remove(tmp_pdf_path)
         except Exception:
@@ -476,13 +495,27 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         if company_title is not None:
             validated_data["company_title"] = company_title
 
+        # --- Language level canonicalization and mapping to Google sheet descriptions ---
+        for lang in validated_data.get("languages", []):
+            lang_report_lang = validated_data.get("report_lang", report_lang)
+            canonical_level = canonicalize_language_level(lang.get("language_level", ""), lang_report_lang)
+            if canonical_level:
+                lang["language_level"] = canonical_level
+            # Now map canonical_level to description from Google sheet
+            level_entry = find_level_entry(lang.get("language_level"), lang_report_lang)
+            if level_entry:
+                lang["level_description"] = level_entry["level_description"]
+                lang["language_level"] = level_entry["language_level"]
+            else:
+                lang["level_description"] = ""
+            lang["language"] = smart_title(lang.get("language", ""))
+
         return validated_data
 
     except Exception as e:
         traceback.print_exc()
         return {"error": str(e)}
 
-# --- Report generation ---
 def build_context(data):
     line_items = []
     latest_date = None
@@ -560,6 +593,16 @@ def build_context(data):
         acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
 
     for lang in data.get("languages", []):
+        lang_report_lang = data.get("report_lang", "PT")
+        canonical_level = canonicalize_language_level(lang.get("language_level", ""), lang_report_lang)
+        if canonical_level:
+            lang["language_level"] = canonical_level
+        level_entry = find_level_entry(lang.get("language_level"), lang_report_lang)
+        if level_entry:
+            lang["level_description"] = level_entry["level_description"]
+            lang["language_level"] = level_entry["language_level"]
+        else:
+            lang["level_description"] = ""
         lang["language"] = smart_title(lang.get("language", ""))
 
     def end_cmp(end_str):
@@ -582,16 +625,15 @@ def build_context(data):
         "cdd_name": format_caps(data.get("cdd_name", "")),
         "cdd_city": smart_title(data.get("cdd_city", "")) + ", ",
         "cdd_state": format_caps(data.get("cdd_state", "")),
-        #"cdd_ddi": data.get("cdd_ddi", "") + " ",
         "cdd_ddi": (data.get("cdd_ddi", "") + " ") if data.get("cdd_ddi", "") else "",
-        "cdd_ddd": (data.get("cdd_ddd", "") + " ") if data.get("cdd_ddd", "") else "",
+        "cdd_ddd": data.get("cdd_ddd", "") + " ",
         "cdd_cel": data.get("cdd_cel", ""),
         "cdd_email": data.get("cdd_email", ""),
-        "cdd_nationality": (smart_title(data.get("cdd_nationality", "")) + " ") if data.get("cdd_nationality", "") else "",
+        "cdd_nationality": smart_title(data.get("cdd_nationality", "")) + " ",
         "cdd_age": data.get("cdd_age", ""),
         "cdd_personal": " " + data.get("cdd_personal", ""),
-        "abt_background": data.get("abt_background",""),
-        "bhv_profile": data.get("bhv_profile",""),
+        "abt_background": data.get("abt_background", ""),
+        "bhv_profile": data.get("bhv_profile", ""),
         "job_bond": data.get("job_bond", ""),
         "job_wage": data.get("job_wage", ""),
         "job_variable": data.get("job_variable", ""),
@@ -622,7 +664,6 @@ def generate_report_from_data(data, template_path, output_path):
         traceback.print_exc()
         raise e
 
-# --- Main Streamlit UI and download logic ---
 def run_streamlit():
     import streamlit as st
     st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
@@ -636,14 +677,12 @@ def run_streamlit():
     if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
         with st.spinner("Processando o currículo e gerando relatório..."):
             file_bytes = uploaded_file.read()
-            # Save PDF to temp file
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
                 tmp_pdf.write(file_bytes)
                 tmp_pdf.flush()
                 tmp_pdf_path = tmp_pdf.name
 
             json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title)
-            # Clean up PDF temp file after parse
             try:
                 os.remove(tmp_pdf_path)
             except Exception:
@@ -655,14 +694,13 @@ def run_streamlit():
                 st.error("❌ Erro retornado pelo parser:")
                 st.stop()
 
-            json_data["company"] = company  # always inject or overwrite
+            json_data["company"] = company
 
             template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
             safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
             output_filename = f"Relatorio_{safe_name}_{datetime.today().strftime('%Y%m%d')}.docx"
             output_path = os.path.join(tempfile.gettempdir(), output_filename)
 
-            # --- Diagnostics: Template checks ---
             st.info(f"📄 Caminho do template utilizado: `{template_path}`")
             if not os.path.isfile(template_path):
                 st.error(f"❌ Template file does not exist: {template_path}")
@@ -674,9 +712,7 @@ def run_streamlit():
                 if header != b'PK\x03\x04':
                     st.error("❌ Template file is not a valid DOCX (ZIP format).")
                     st.stop()
-                # Show template size for diagnostics
                 st.info(f"📄 Tamanho do arquivo template: {os.path.getsize(template_path)} bytes")
-                # Show undeclared template variables if possible
                 try:
                     doc = DocxTemplate(template_path)
                     undeclared = doc.get_undeclared_template_variables()
@@ -687,11 +723,9 @@ def run_streamlit():
             except Exception as e:
                 st.error(f"❌ Could not read template file: {e}")
                 st.stop()
-            # --- End Diagnostics: Template checks ---
 
             try:
                 generate_report_from_data(json_data, template_path, output_path)
-                # --- Diagnostics: Output file checks ---
                 if not os.path.exists(output_path):
                     st.error("❌ O arquivo DOCX gerado não foi encontrado.")
                     st.stop()
@@ -703,11 +737,9 @@ def run_streamlit():
                 st.code(traceback.format_exc())
                 st.stop()
 
-            # Read the DOCX as bytes for Streamlit download
             try:
                 with open(output_path, "rb") as f:
                     file_bytes = f.read()
-                # Show first bytes of generated file for diagnostics
                 st.info(f"📄 Primeiros bytes do DOCX gerado: {file_bytes[:4]}")
                 if not file_bytes.startswith(b'PK\x03\x04'):
                     st.error("❌ O arquivo gerado não é um DOCX válido (espera-se PK header).")
