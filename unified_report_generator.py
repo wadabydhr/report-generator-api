@@ -150,18 +150,18 @@ Output only valid JSON matching the provided schema.
 - All languages the candidate lists.
 
 ### languages[].language
-- Title Case. Must be a valid language.
+- Title Case. Must be a valid language. Portuguese language can not be part of languages array since it is mandatory.
 
 ### languages[].language_level
 - Must match exactly one of:
-  - Elementary (basic knowledge)
-  - Pre-operational (basic with intermediary skill in conversation or writing)
-  - Operational (intermediary knowledge)
-  - Extended (intermediary with advanced skill only in conversation or writing)
-  - Expert (advanced knowledge or native or fluent)
+  - If basic knowledge must be either "Elementary" for report_lang=EN or "Elementar" for report_lang=PT.
+  - If basic with intermediary skill in conversation or writing must be either "Pre-operational" for report_lang=EN or "Pre-operacional" for report_lang=PT.
+  - If intermediary knowledge must be either "Operational" for report_lang=EN or "Operacional" for report_lang=PT.
+  - If intermediary with advanced skill only in conversation or writing must be einther "Extended" for report_lang=EN or "Intermediário" for report_lang=PT.
+  - If advanced knowledge or native or fluent must be either "Expert" for report_lang=EN or "Avançado / Fluente" for report_lang=PT.
 
 ### languages[].level_description
-- Use the standard description for the language level and report language.
+- Use the standard description for the language level and report language according to PT_LEVELS or EN_LEVELS from code.
 - If not found, output "".
 
 # OUTPUT FORMAT
@@ -584,10 +584,10 @@ def build_context(data):
         "cdd_state": format_caps(data.get("cdd_state", "")),
         #"cdd_ddi": data.get("cdd_ddi", "") + " ",
         "cdd_ddi": (data.get("cdd_ddi", "") + " ") if data.get("cdd_ddi", "") else "",
-        "cdd_ddd": data.get("cdd_ddd", "") + " ",
+        "cdd_ddd": (data.get("cdd_ddd", "") + " ") if data.get("cdd_ddd", "") else "",
         "cdd_cel": data.get("cdd_cel", ""),
         "cdd_email": data.get("cdd_email", ""),
-        "cdd_nationality": smart_title(data.get("cdd_nationality", "")) + " ",
+        "cdd_nationality": (smart_title(data.get("cdd_nationality", "")) + " ") if data.get("cdd_nationality", "") else "",
         "cdd_age": data.get("cdd_age", ""),
         "cdd_personal": " " + data.get("cdd_personal", ""),
         "abt_background": data.get("abt_background",""),
