@@ -304,7 +304,6 @@ def enforce_schema(data, schema):
     else:
         return data if data is not None else schema
 
-# ... [Other utility functions: translate_text, language levels, months, parsing, etc.] ...
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1q8hKLWcizUK2moUxQpiLHCyB5FHYVpPPNiyvq0NB_mM/export?format=csv"
 df_levels = pd.read_csv(SHEET_URL)
 df_levels["language_level"] = df_levels["language_level"].astype(str)  # Ensure all keys are str for matching
@@ -476,20 +475,17 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         if company_title is not None:
             validated_data["company_title"] = company_title
 
-        # --- Language level normalization added here ---
-        # Normalize language_level and level_description for each language entry
+        # --- Language level normalization (force to report_lang) ---
         languages = validated_data.get("languages", [])
-        report_lang_val = validated_data.get("report_lang", "PT")
+        report_lang_val = validated_data.get("report_lang", report_lang)
         for lang in languages:
             level_entry = find_level_entry(lang.get("language_level"), report_lang_val)
             if level_entry:
                 lang["language_level"] = level_entry["language_level"]
                 lang["level_description"] = level_entry["level_description"]
             else:
-                # If not found, blank description as per schema
                 lang["level_description"] = ""
             lang["language"] = smart_title(lang.get("language", ""))
-
         return validated_data
 
     except Exception as e:
@@ -603,7 +599,6 @@ def build_context(data):
         "cdd_name": format_caps(data.get("cdd_name", "")),
         "cdd_city": smart_title(data.get("cdd_city", "")) + ", ",
         "cdd_state": format_caps(data.get("cdd_state", "")),
-        #"cdd_ddi": data.get("cdd_ddi", "") + " ",
         "cdd_ddi": (data.get("cdd_ddi", "") + " ") if data.get("cdd_ddi", "") else "",
         "cdd_ddd": data.get("cdd_ddd", "") + " ",
         "cdd_cel": data.get("cdd_cel", ""),
@@ -611,8 +606,8 @@ def build_context(data):
         "cdd_nationality": smart_title(data.get("cdd_nationality", "")) + " ",
         "cdd_age": data.get("cdd_age", ""),
         "cdd_personal": " " + data.get("cdd_personal", ""),
-        "abt_background": data.get("abt_background",""),
-        "bhv_profile": data.get("bhv_profile",""),
+        "abt_background": data.get("abt_background", ""),
+        "bhv_profile": data.get("bhv_profile", ""),
         "job_bond": data.get("job_bond", ""),
         "job_wage": data.get("job_wage", ""),
         "job_variable": data.get("job_variable", ""),
