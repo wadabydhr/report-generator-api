@@ -322,7 +322,6 @@ for _, row in df_levels.iterrows():
             "level_description": row.get("level_description_en", "")
         }
 
-# Canonical mapping logic for matching LLM output to canonical levels
 CANONICAL_LANGUAGE_LEVELS = [
     {
         "en": "Elementary",
@@ -454,13 +453,25 @@ def translate_text(text, target_lang="EN"):
             ],
             temperature=0.2
         )
-        return response.choices[0].message.content.strip()
+        result = response.choices[0].message.content.strip()
+        # If OpenAI returns empty/warning/error or repeats input, fallback to original
+        if not result or result.lower().startswith("warning") or "error" in result.lower():
+            return text
+        if result.strip() == text.strip():
+            return text
+        return result
     except Exception:
         return text
 
 def translate_json_values(data, target_lang="EN", skip_keys=None):
+    default_skip = {
+        "language_level", "level_description", "report_lang", "report_date", "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age",
+        "company_start_date", "company_end_date", "start_date", "end_date", "academic_conclusion"
+    }
     if skip_keys is None:
-        skip_keys = {"language_level", "level_description", "report_lang", "report_date", "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age"}
+        skip_keys = default_skip
+    else:
+        skip_keys = set(skip_keys) | default_skip
     if isinstance(data, dict):
         return {k: translate_json_values(v, target_lang, skip_keys) if k not in skip_keys else v for k, v in data.items()}
     elif isinstance(data, list):
@@ -532,7 +543,6 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             canonical_level = canonicalize_language_level(lang.get("language_level", ""), lang_report_lang)
             if canonical_level:
                 lang["language_level"] = canonical_level
-            # Now map canonical_level to description from Google sheet
             level_entry = find_level_entry(lang.get("language_level"), lang_report_lang)
             if level_entry:
                 lang["level_description"] = level_entry["level_description"]
@@ -541,7 +551,7 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
                 lang["level_description"] = ""
             lang["language"] = smart_title(lang.get("language", ""))
 
-        # --- Translate JSON values if report_lang is EN ---
+        # Translate values to English only if report_lang is EN, and skip date fields and system fields
         if validated_data.get("report_lang", "PT") == "EN":
             validated_data = translate_json_values(validated_data, target_lang="EN")
 
