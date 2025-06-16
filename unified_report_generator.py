@@ -26,6 +26,14 @@ Output only valid JSON matching the provided schema.
 - Dates must be normalized as per date rules below.
 - Output must be valid, parseable JSON matching the schema.
 
+# CRUCIAL EXTRACTION RULES FOR COMPANIES AND JOBS
+- Do not skip, merge, or omit any company or employer from the CV.
+- For each distinct company, create one line_items[] entry, grouping all jobs at that company.
+- If the candidate worked at N companies, your output must have N line_items[] entries.
+- If you miss any, your output is invalid.
+- Never summarize, merge, or omit any company, employer, or position. If the CV lists 5 companies, your output MUST contain 5 items in line_items.
+- Do not omit, merge, or skip any company.
+
 # FIELD-SPECIFIC RULES
 
 ## company
@@ -58,7 +66,7 @@ Output only valid JSON matching the provided schema.
 - Only the city or state name, no country.
 
 ## cdd_age
-- Integer only. Search for birth date too to calculate candidate's age. If not found, output "".
+- Integer only. If not found, output "".
 
 ## cdd_nationality
 - Use the demonym (e.g., "Brazilian", "Brasileiro"), not the country name. Don't put the country name but the nationality.
@@ -85,15 +93,14 @@ Output only valid JSON matching the provided schema.
 - Format as "DD de <month> de YYYY" if PT, or "<DayOrdinal> <Month>, YYYY" if EN (e.g., "29 de maio de 2025" or "29th May, 2025").
 
 ## line_items (array)
-- Each item is a unique company the candidate worked for. Extract all the companies listed at CV. All companies worked must be present on the report.
+- Each item is a unique company the candidate worked for.
 - See sub-fields below.
 
 ### line_items[].cdd_company
 - Official company name, in UPPERCASE.
 
 ### line_items[].company_desc
-- Short description of the company's activities (max 89 characters).
-- Verify other sources to find out what is the main activity of this company, main product or service and origin (max 89 characters).
+- Short description of the company (max 89 characters).
 
 ### line_items[].company_start_date
 - Earliest start date among all jobs at this company, in "MM/YYYY".
@@ -122,14 +129,13 @@ Output only valid JSON matching the provided schema.
 
 #### line_items[].job_posts[].end_date
 - Same date rules as start_date.
-- If value means present (see below), output "PRESENT" or "ATUAL" depending of the report language (report_lang).
+- If value means present (see below), output "PRESENT".
 - English present terms: present, current, currently, actual, nowadays, this moment, today.
 - Portuguese present terms: presente, atual, atualmente, no presente, neste momento, data atual, presente momento, agora.
 
 #### line_items[].job_posts[].job_tasks (array)
 - Each item is a task performed in the job.
-- Distinct acitivities must be set on topics to show different job skills and attributions that accomplished.
-- Each task must be kept as much as possible close to the original phrase, only merging if there are duplicities and can not be summarized.
+- Each task must be a distinct activity, not merged or summarized.
 - Start with uppercase letter.
 - Use the report language.
 
