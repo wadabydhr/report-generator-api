@@ -439,6 +439,37 @@ def parse_mm_yyyy(date_str):
     except Exception:
         return None
 
+# --- Translation Utilities ---
+def translate_text(text, target_lang="EN"):
+    if not isinstance(text, str) or not text.strip():
+        return text
+    try:
+        client = Client(api_key=os.getenv("OPENAI_API_KEY"))
+        prompt = f"Translate the following text to English:\n\n{text.strip()}"
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a translation assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2
+        )
+        return response.choices[0].message.content.strip()
+    except Exception:
+        return text
+
+def translate_json_values(data, target_lang="EN", skip_keys=None):
+    if skip_keys is None:
+        skip_keys = {"language_level", "level_description", "report_lang", "report_date", "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age"}
+    if isinstance(data, dict):
+        return {k: translate_json_values(v, target_lang, skip_keys) if k not in skip_keys else v for k, v in data.items()}
+    elif isinstance(data, list):
+        return [translate_json_values(item, target_lang, skip_keys) for item in data]
+    elif isinstance(data, str):
+        return translate_text(data, target_lang)
+    else:
+        return data
+
 def parse_cv_to_json(file_path, report_lang, company_title=None):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
     if not file_path:
@@ -509,6 +540,10 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             else:
                 lang["level_description"] = ""
             lang["language"] = smart_title(lang.get("language", ""))
+
+        # --- Translate JSON values if report_lang is EN ---
+        if validated_data.get("report_lang", "PT") == "EN":
+            validated_data = translate_json_values(validated_data, target_lang="EN")
 
         return validated_data
 
