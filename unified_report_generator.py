@@ -92,7 +92,8 @@ Output only valid JSON matching the provided schema.
 - Official company name, in UPPERCASE.
 
 ### line_items[].company_desc
-- Short description of the company (max 89 characters).
+- Short description of the activities of the company (max 89 characters).
+- Verify other sources to find out what is the main activity of this company, main product or service and origin (max 89 characters).
 
 ### line_items[].company_start_date
 - Earliest start date among all jobs at this company, in "MM/YYYY".
