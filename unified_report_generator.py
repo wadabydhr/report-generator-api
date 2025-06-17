@@ -119,6 +119,7 @@ Output only valid JSON matching the provided schema.
 
 #### line_items[].job_posts[].job_title
 - Title Case (capitalize each word), remove company or location.
+- Must be translated to Portuguese or English language according to the report language defined by report_lang value (PT or EN).
 
 #### line_items[].job_posts[].start_date
 - Must be in "MM/YYYY".
@@ -238,7 +239,7 @@ REQUIRED_SCHEMA = {
 def smart_title(text):
     if not isinstance(text, str):
         return text
-    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas"}
+    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas", "of", "and", "in", "on", "to", "from", "with", "by", "for", "at"}
     words = text.lower().split()
     return " ".join(
         word if word in lowercase_exceptions else word.capitalize()
