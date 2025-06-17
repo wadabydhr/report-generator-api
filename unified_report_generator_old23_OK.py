@@ -13,7 +13,7 @@ import re
 EXTRACTION_PROMPT = """
 You are an expert system for extracting structured JSON from resumes (CVs) for HR automation.
 Strictly follow the rules below for every field.
-Never invent, summarize, or infer data not present.
+Never invent, summarize, or infer data not present. Just do spelling and grammar correction when necessary according to the report language.
 Output only valid JSON matching the provided schema.
 
 # GLOBAL RULES
@@ -25,6 +25,14 @@ Output only valid JSON matching the provided schema.
 - All string values must be normalized per field rules below.
 - Dates must be normalized as per date rules below.
 - Output must be valid, parseable JSON matching the schema.
+
+# CRUCIAL EXTRACTION RULES FOR COMPANIES AND JOBS
+- Do not skip, merge, or omit any company or employer from the CV.
+- For each distinct company, create one line_items[] entry, grouping all jobs at that company.
+- If the candidate worked at N companies, your output must have N line_items[] entries.
+- If you miss any, your output is invalid.
+- Never summarize, merge, or omit any company, employer, or position. If the CV lists 5 companies, your output MUST contain 5 items in line_items.
+- Do not omit, merge, or skip any company.
 
 # FIELD-SPECIFIC RULES
 
@@ -111,6 +119,7 @@ Output only valid JSON matching the provided schema.
 
 #### line_items[].job_posts[].job_title
 - Title Case (capitalize each word), remove company or location.
+- Must be translated to Portuguese or English language according to the report language defined by report_lang value (PT or EN).
 
 #### line_items[].job_posts[].start_date
 - Must be in "MM/YYYY".
@@ -144,10 +153,10 @@ Output only valid JSON matching the provided schema.
 - Title Case.
 
 ### academics[].academic_conclusion
-- "MM/YYYY" or "00/0000".
+- "YYYY" or "0000".
 
 ## languages (array)
-- All languages the candidate lists.
+- All languages the candidate lists except Portuguese language.
 
 ### languages[].language
 - Title Case. Must be a valid language.
@@ -230,7 +239,7 @@ REQUIRED_SCHEMA = {
 def smart_title(text):
     if not isinstance(text, str):
         return text
-    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas"}
+    lowercase_exceptions = {"de", "da", "do", "das", "dos", "para", "com", "e", "a", "o", "as", "os", "em", "no", "na", "nos", "nas", "of", "and", "in", "on", "to", "from", "with", "by", "for", "at"}
     words = text.lower().split()
     return " ".join(
         word if word in lowercase_exceptions else word.capitalize()
@@ -322,7 +331,6 @@ for _, row in df_levels.iterrows():
             "level_description": row.get("level_description_en", "")
         }
 
-# Canonical mapping logic for matching LLM output to canonical levels
 CANONICAL_LANGUAGE_LEVELS = [
     {
         "en": "Elementary",
@@ -439,6 +447,49 @@ def parse_mm_yyyy(date_str):
     except Exception:
         return None
 
+def translate_text(text, target_lang="EN"):
+    if not isinstance(text, str) or not text.strip():
+        return text
+    try:
+        client = Client(api_key=os.getenv("OPENAI_API_KEY"))
+        prompt = f"Translate the following text to English:\n\n{text.strip()}"
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a translation assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2
+        )
+        result = response.choices[0].message.content.strip()
+        # If OpenAI returns empty, a warning, a clarification, or repeats input, fallback to original
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for many things" in result.lower() or "provide more context" in result.lower():
+            return text
+        if result.strip() == text.strip():
+            return text
+        return result
+    except Exception:
+        return text
+
+def translate_json_values(data, target_lang="EN", skip_keys=None):
+    default_skip = {
+        "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
+        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company",
+        "company_start_date", "company_end_date", "start_date", "end_date", "academic_conclusion", "academic_institution"
+    }
+    if skip_keys is None:
+        skip_keys = default_skip
+    else:
+        skip_keys = set(skip_keys) | default_skip
+    if isinstance(data, dict):
+        return {k: translate_json_values(v, target_lang, skip_keys) if k not in skip_keys else v for k, v in data.items()}
+    elif isinstance(data, list):
+        return [translate_json_values(item, target_lang, skip_keys) for item in data]
+    elif isinstance(data, str):
+        return translate_text(data, target_lang)
+    else:
+        return data
+
 def parse_cv_to_json(file_path, report_lang, company_title=None):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
     if not file_path:
@@ -509,6 +560,10 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
             else:
                 lang["level_description"] = ""
             lang["language"] = smart_title(lang.get("language", ""))
+
+        # Translate values to English only if report_lang is EN, and skip excluded keys
+        if validated_data.get("report_lang", "PT") == "EN":
+            validated_data = translate_json_values(validated_data, target_lang="EN")
 
         return validated_data
 
