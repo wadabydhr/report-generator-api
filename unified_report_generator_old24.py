@@ -34,6 +34,12 @@ Output only valid JSON matching the provided schema.
 - Never summarize, merge, or omit any company, employer, or position. If the CV lists 5 companies, your output MUST contain 5 items in line_items.
 - Do not omit, merge, or skip any company.
 
+# LANGUAGE RULES
+- The output content MUST be ONLY in the language specified by the field "report_lang": use "PT" for Portuguese or "EN" for English.
+- Do NOT use Spanish or any other language under any circumstances.
+- If translating, always translate to the language specified by "report_lang" and never to any other language.
+- If the content is already in the correct language, only perform spelling and grammar correction as needed according to "report_lang".
+
 # FIELD-SPECIFIC RULES
 
 ## company
@@ -130,13 +136,14 @@ Output only valid JSON matching the provided schema.
 
 #### line_items[].job_posts[].end_date
 - Same date rules as start_date.
-- If value means present (see below), output "PRESENT".
+- If value means present (see below), output "PRESENT" if report language is English or "ATUAL" if report language is Portuguese.
 - English present terms: present, current, currently, actual, nowadays, this moment, today.
 - Portuguese present terms: presente, atual, atualmente, no presente, neste momento, data atual, presente momento, agora.
 
 #### line_items[].job_posts[].job_tasks (array)
 - Each item is a task performed in the job.
-- Each task must be a distinct activity, not merged or summarized.
+- Distinct acitivities must be set on topics to show different job skills and attributions that accomplished.
+- Each task must be kept as much as possible close to the original phrase, only merging if there are duplicities and can not be summarized.
 - Start with uppercase letter.
 - Use the report language.
 
@@ -447,20 +454,20 @@ def parse_mm_yyyy(date_str):
     except Exception:
         return None
 
-# --- FIX: ENFORCE TRANSLATION TO ENGLISH OR PORTUGUESE ONLY ---
 def translate_text(text, target_lang="EN"):
     if not isinstance(text, str) or not text.strip():
         return text
+    # Enforce translation only to PT or EN, never to Spanish or other languages
     if target_lang.upper() not in ("EN", "PT"):
         return text
     try:
         client = Client(api_key=os.getenv("OPENAI_API_KEY"))
         if target_lang.upper() == "EN":
-            system_prompt = "You are a translation assistant. Translate ONLY to English. Never use Spanish or any language but English."
-            prompt = f"Translate the following text to English. Never use Spanish or any language but English:\n\n{text.strip()}"
+            system_prompt = "You are a translation assistant. Only translate to English. Never use Spanish or any other language."
+            prompt = f"Translate the following text to English. Never use Spanish or other languages:\n\n{text.strip()}"
         else:
-            system_prompt = "Você é um assistente de tradução. Traduza SOMENTE para o português. Nunca use espanhol nem outro idioma além de português."
-            prompt = f"Traduza o texto abaixo para o português. Nunca use espanhol nem outro idioma além de português:\n\n{text.strip()}"
+            system_prompt = "Você é um assistente de tradução. Traduza SOMENTE para o português. Nunca use espanhol nem outro idioma."
+            prompt = f"Traduza o texto abaixo para o português. Nunca use espanhol nem outro idioma:\n\n{text.strip()}"
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -470,6 +477,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
+        # If OpenAI returns empty, a warning, a clarification, or repeats input, fallback to original
         if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for many things" in result.lower() or "provide more context" in result.lower():
             return text
         if result.strip() == text.strip():
@@ -477,6 +485,7 @@ def translate_text(text, target_lang="EN"):
         return result
     except Exception:
         return text
+
 
 def translate_json_values(data, target_lang="EN", skip_keys=None):
     default_skip = {
