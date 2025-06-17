@@ -13,7 +13,7 @@ import re
 EXTRACTION_PROMPT = """
 You are an expert system for extracting structured JSON from resumes (CVs) for HR automation.
 Strictly follow the rules below for every field.
-Never invent, summarize, or infer data not present.
+Never invent, summarize, or infer data not present. Just do spelling and grammar correction when necessary according to the report language.
 Output only valid JSON matching the provided schema.
 
 # GLOBAL RULES
@@ -152,10 +152,10 @@ Output only valid JSON matching the provided schema.
 - Title Case.
 
 ### academics[].academic_conclusion
-- "MM/YYYY" or "00/0000".
+- "YYYY" or "0000".
 
 ## languages (array)
-- All languages the candidate lists.
+- All languages the candidate lists except Portuguese language.
 
 ### languages[].language
 - Title Case. Must be a valid language.
