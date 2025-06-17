@@ -136,13 +136,14 @@ Output only valid JSON matching the provided schema.
 
 #### line_items[].job_posts[].end_date
 - Same date rules as start_date.
-- If value means present (see below), output "PRESENT".
+- If value means present (see below), output "PRESENT" if report language is English or "ATUAL" if report language is Portuguese.
 - English present terms: present, current, currently, actual, nowadays, this moment, today.
 - Portuguese present terms: presente, atual, atualmente, no presente, neste momento, data atual, presente momento, agora.
 
 #### line_items[].job_posts[].job_tasks (array)
 - Each item is a task performed in the job.
-- Each task must be a distinct activity, not merged or summarized.
+- Distinct acitivities must be set on topics to show different job skills and attributions that accomplished.
+- Each task must be kept as much as possible close to the original phrase, only merging if there are duplicities and can not be summarized.
 - Start with uppercase letter.
 - Use the report language.
 
