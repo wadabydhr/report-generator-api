@@ -486,6 +486,7 @@ def translate_text(text, target_lang="EN"):
     except Exception:
         return text
 
+
 def translate_json_values(data, target_lang="EN", skip_keys=None):
     default_skip = {
         "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
