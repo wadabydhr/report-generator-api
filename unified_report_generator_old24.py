@@ -96,7 +96,7 @@ Output only valid JSON matching the provided schema.
 - Must be "PT" or "EN" per user selection.
 
 ## report_date
-- Format as "DD de <month> de YYYY" if PT, or "<DayOrdinal> <Month>, YYYY" if EN (e.g., "29 de maio de 2025" or "29th May, 2025").
+- Format as "DD de <month> de YYYY" if PT, or "<Month> <DayOrdinal>, YYYY" if EN (e.g., "29 de maio de 2025" or "May 29th, 2025").
 
 ## line_items (array)
 - Each item is a unique company the candidate worked for.
