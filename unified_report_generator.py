@@ -27,6 +27,7 @@ Output only valid JSON matching the provided schema.
 - Output must be valid, parseable JSON matching the schema.
 
 # CRUCIAL EXTRACTION RULES FOR COMPANIES AND JOBS
+- For more than one column text file, read from left to right and top to down, before move to the next column.
 - Do not skip, merge, or omit any company or employer from the CV.
 - For each distinct company, create one line_items[] entry, grouping all jobs at that company.
 - If the candidate worked at N companies, your output must have N line_items[] entries.
@@ -292,7 +293,7 @@ def format_report_date(lang_code):
     if lang_code == "PT":
         return f"{day} de {month_pt[month_index]} de {year}"
     else:
-        return f"{ordinal(day)} {month_en[month_index]}, {year}"
+        return f"{month_en[month_index]} {ordinal(day)}, {year}"
 
 def enforce_schema(data, schema):
     if isinstance(schema, dict):
