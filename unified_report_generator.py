@@ -96,6 +96,7 @@ Output only valid JSON matching the provided schema.
 
 ## line_items (array)
 - Each item is a unique company the candidate worked for.
+- The order of line_items must be by the most recent company_end_date to the older one.
 - See sub-fields below.
 
 ### line_items[].cdd_company
