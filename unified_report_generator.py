@@ -17,6 +17,7 @@ Never invent, summarize, or infer data not present. Just do spelling and grammar
 Output only valid JSON matching the provided schema.
 
 # GLOBAL RULES
+- For more than one column text document, every column must be read from left to right and top to down, before move to the next text column. The continuity of text logic follows this rule for two or more columns texts.
 - Every key in the schema must appear in the output, even if its value is empty.
 - If a value is missing or unparseable, fill with an empty string (""), empty list ([]), or the correct empty type.
 - Never invent, summarize, or infer data not found in the input.
@@ -27,13 +28,13 @@ Output only valid JSON matching the provided schema.
 - Output must be valid, parseable JSON matching the schema.
 
 # CRUCIAL EXTRACTION RULES FOR COMPANIES AND JOBS
-- For more than one column text file, read from left to right and top to down, before move to the next column.
-- Do not skip, merge, or omit any company or employer from the CV.
+- Do not skip, merge, or omit any company or employer from the CV. All the companies and jobs worked must be extracted.
 - For each distinct company, create one line_items[] entry, grouping all jobs at that company.
 - If the candidate worked at N companies, your output must have N line_items[] entries.
 - If you miss any, your output is invalid.
 - Never summarize, merge, or omit any company, employer, or position. If the CV lists 5 companies, your output MUST contain 5 items in line_items.
 - Do not omit, merge, or skip any company.
+- Usually companies and job titles are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profisisonais, works, trabalhos.
 
 # FIELD-SPECIFIC RULES
 
