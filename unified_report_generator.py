@@ -34,7 +34,7 @@ Output only valid JSON matching the provided schema.
 - If you miss any, your output is invalid.
 - Never summarize, merge, or omit any company, employer, or position. If the CV lists 5 companies, your output MUST contain 5 items in line_items.
 - Do not omit, merge, or skip any company.
-- Usually companies and job titles are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profisisonais, works, trabalhos.
+- Usually companies, job_title, start_date, end_date, job_tasks are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profisisonais, works, trabalhos.
 
 # FIELD-SPECIFIC RULES
 
