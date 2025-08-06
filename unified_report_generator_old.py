@@ -17,7 +17,7 @@ Never invent, summarize, or infer data not present. Just do spelling and grammar
 Output only valid JSON matching the provided schema.
 
 # GLOBAL RULES
-- For more than one column text document, every column must be read from left to right and top to down, before move to the next text column. The continuity of text logic follows this rule for two or more columns.
+- For more than one column text document, every column must be read from left to right and top to down, before move to the next text column. The continuity of text logic follows this rule for two or more columns texts.
 - Every key in the schema must appear in the output, even if its value is empty.
 - If a value is missing or unparseable, fill with an empty string (""), empty list ([]), or the correct empty type.
 - Never invent, summarize, or infer data not found in the input.
@@ -34,7 +34,7 @@ Output only valid JSON matching the provided schema.
 - If you miss any, your output is invalid.
 - Never summarize, merge, or omit any company, employer, or position. If the CV lists 5 companies, your output MUST contain 5 items in line_items.
 - Do not omit, merge, or skip any company.
-- Usually companies, job_title, start_date, end_date, job_tasks are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profissionais, etc.
+- Usually companies, job_title, start_date, end_date, job_tasks are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profisisonais, works, trabalhos.
 
 # FIELD-SPECIFIC RULES
 
@@ -169,8 +169,8 @@ Output only valid JSON matching the provided schema.
   - If basic knowledge must be either "Elementary" for report_lang=EN or "Elementar" for report_lang=PT.
   - If basic with intermediary skill in conversation or writing must be either "Pre-operational" for report_lang=EN or "Pre-operacional" for report_lang=PT.
   - If intermediary knowledge must be either "Operational" for report_lang=EN or "Operacional" for report_lang=PT.
-  - If intermediary with advanced skill only in conversation or writing must be either "Intermediate" for report_lang=EN or "Intermediário" for report_lang=PT.
-  - If advanced knowledge or native or fluent must be either "Advanced or Fluent" for report_lang=EN or "Avançado ou fluente" for report_lang=PT.
+  - If intermediary with advanced skill only in conversation or writing must be either "Extended" for report_lang=EN or "Intermediário" for report_lang=PT.
+  - If advanced knowledge or native or fluent must be either "Expert" for report_lang=EN or "Avançado / Fluente" for report_lang=PT.
 
 ### languages[].level_description
 - Use the standard description for the language level and report language.
@@ -450,6 +450,7 @@ def parse_mm_yyyy(date_str):
     except Exception:
         return None
 
+# --- FIX: ENFORCE TRANSLATION TO ENGLISH OR PORTUGUESE ONLY ---
 def translate_text(text, target_lang="EN"):
     if not isinstance(text, str) or not text.strip():
         return text
@@ -472,7 +473,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for many things" in result.lower() or "provide more context" in result.lower():
             return text
         if result.strip() == text.strip():
             return text
@@ -499,54 +500,7 @@ def translate_json_values(data, target_lang="EN", skip_keys=None):
     else:
         return data
 
-# --- Language dropdown/form logic (NEW/CHANGED) ---
-LANGUAGE_LEVEL_CHOICES = [
-    ("NO", 0),
-    ("Elementar", 1),
-    ("Pré-operacional", 2),
-    ("Operacional", 3),
-    ("Intermediário", 4),
-    ("Avançado", 5),
-]
-LEVEL_LABEL_MAP_PT = {
-    1: "Elementar",
-    2: "Pré-operacional",
-    3: "Operacional",
-    4: "Intermediário",
-    5: "Avançado ou fluente",
-}
-LEVEL_LABEL_MAP_EN = {
-    1: "Elementary",
-    2: "Pre-operational",
-    3: "Operational",
-    4: "Intermediate",
-    5: "Advanced or Fluent",
-}
-LANGUAGE_DISPLAY = [
-    {"label_pt": "Inglês", "label_en": "English", "key": "english"},
-    {"label_pt": "Espanhol", "label_en": "Spanish", "key": "spanish"},
-    {"label_pt": "Japonês", "label_en": "Japanese", "key": "japanese"},
-]
-def get_level_label(level, report_lang):
-    if report_lang == "PT":
-        return LEVEL_LABEL_MAP_PT.get(level, "")
-    else:
-        return LEVEL_LABEL_MAP_EN.get(level, "")
-
-def find_level_entry_by_label(label, report_lang):
-    key = label.strip().lower()
-    if report_lang == "PT":
-        if key in PT_LEVELS:
-            return PT_LEVELS[key]
-    else:
-        if key in EN_LEVELS:
-            return EN_LEVELS[key]
-    return {
-        "language_level": label,
-        "level_description": ""
-    }
-
-def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills=None):
+def parse_cv_to_json(file_path, report_lang, company_title=None):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
     if not file_path:
         return {"error": "Missing CV file"}
@@ -602,23 +556,22 @@ def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills
         if company_title is not None:
             validated_data["company_title"] = company_title
 
-        # --- Only fill languages from form input ---
-        validated_data["languages"] = []
-        if language_skills:
-            for lang in LANGUAGE_DISPLAY:
-                lang_key = lang["key"]
-                level = language_skills.get(lang_key, 0)
-                if level and level > 0:
-                    label = get_level_label(level, validated_data.get("report_lang", report_lang))
-                    language_name = lang["label_en"] if validated_data.get("report_lang", report_lang) == "EN" else lang["label_pt"]
-                    level_entry = find_level_entry_by_label(label, validated_data.get("report_lang", report_lang))
-                    validated_data["languages"].append({
-                        "language": language_name,
-                        "language_level": level_entry["language_level"],
-                        "level_description": level_entry["level_description"]
-                    })
+        # --- Language level canonicalization and mapping to Google sheet descriptions ---
+        for lang in validated_data.get("languages", []):
+            lang_report_lang = validated_data.get("report_lang", report_lang)
+            canonical_level = canonicalize_language_level(lang.get("language_level", ""), lang_report_lang)
+            if canonical_level:
+                lang["language_level"] = canonical_level
+            # Now map canonical_level to description from Google sheet
+            level_entry = find_level_entry(lang.get("language_level"), lang_report_lang)
+            if level_entry:
+                lang["level_description"] = level_entry["level_description"]
+                lang["language_level"] = level_entry["language_level"]
+            else:
+                lang["level_description"] = ""
+            lang["language"] = smart_title(lang.get("language", ""))
 
-        # --- All other logic remains unchanged ---
+        # Translate values to English or Portuguese only if report_lang is EN or PT, and skip excluded keys
         if validated_data.get("report_lang", "PT") == "EN":
             validated_data = translate_json_values(validated_data, target_lang="EN")
         elif validated_data.get("report_lang", "PT") == "PT":
@@ -788,23 +741,6 @@ def run_streamlit():
     company = st.text_input("🏢 Nome da empresa")
     company_title = st.text_input("💼 Título da vaga")
 
-    # --- Language skill fields (form) ---
-    st.markdown("#### Idiomas e Nível do Candidato")
-    language_skills = {}
-    for lang in LANGUAGE_DISPLAY:
-        col1, col2 = st.columns([1,2])
-        with col1:
-            label = lang["label_pt"] if language == "PT" else lang["label_en"]
-            st.write(f"{label}:")
-        with col2:
-            level = st.selectbox(
-                "",
-                options=[choice[1] for choice in LANGUAGE_LEVEL_CHOICES],
-                format_func=lambda x: dict(LANGUAGE_LEVEL_CHOICES)[x],
-                key=f"{lang['key']}_level"
-            )
-            language_skills[lang["key"]] = level
-
     if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
         with st.spinner("Processando o currículo e gerando relatório..."):
             file_bytes = uploaded_file.read()
@@ -813,7 +749,7 @@ def run_streamlit():
                 tmp_pdf.flush()
                 tmp_pdf_path = tmp_pdf.name
 
-            json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title, language_skills=language_skills)
+            json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title)
             try:
                 os.remove(tmp_pdf_path)
             except Exception:
