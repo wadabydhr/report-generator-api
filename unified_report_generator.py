@@ -169,8 +169,8 @@ Output only valid JSON matching the provided schema.
   - If basic knowledge must be either "Elementary" for report_lang=EN or "Elementar" for report_lang=PT.
   - If basic with intermediary skill in conversation or writing must be either "Pre-operational" for report_lang=EN or "Pre-operacional" for report_lang=PT.
   - If intermediary knowledge must be either "Operational" for report_lang=EN or "Operacional" for report_lang=PT.
-  - If intermediary with advanced skill only in conversation or writing must be either "Intermediate" for report_lang=EN or "Intermediário" for report_lang=PT.
-  - If advanced knowledge or native or fluent must be either "Advanced or Fluent" for report_lang=EN or "Avançado ou fluente" for report_lang=PT.
+  - If intermediary with advanced skill only in conversation or writing must be either "Extended" for report_lang=EN or "Intermediário" for report_lang=PT.
+  - If advanced knowledge or native or fluent must be either "Expert" for report_lang=EN or "Avançado / Fluente" for report_lang=PT.
 
 ### languages[].level_description
 - Use the standard description for the language level and report language.
@@ -450,6 +450,180 @@ def parse_mm_yyyy(date_str):
     except Exception:
         return None
 
+# --- FIX: ENFORCE TRANSLATION TO ENGLISH OR PORTUGUESE ONLY ---
+def translate_text(text, target_lang="EN"):
+    if not isinstance(text, str) or not text.strip():
+        return text
+    if target_lang.upper() not in ("EN", "PT"):
+        return text
+    try:
+        client = Client(api_key=os.getenv("OPENAI_API_KEY"))
+        if target_lang.upper() == "EN":
+            system_prompt = "You are a translation assistant. Translate ONLY to English. Never use Spanish or any language but English."
+            prompt = f"Translate the following text to English. Never use Spanish or any language but English:\n\n{text.strip()}"
+        else:
+            system_prompt = "Você é um assistente de tradução. Traduza SOMENTE para o português. Nunca use espanhol nem outro idioma além de português."
+            prompt = f"Traduza o texto abaixo para o português. Nunca use espanhol nem outro idioma além de português:\n\n{text.strip()}"
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2
+        )
+        result = response.choices[0].message.content.strip()
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
+            return text
+        if result.strip() == text.strip():
+            return text
+        return result
+    except Exception:
+        return text
+
+def translate_json_values(data, target_lang="EN", skip_keys=None):
+    default_skip = {
+        "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
+        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company",
+        "company_start_date", "company_end_date", "start_date", "end_date", "academic_conclusion", "academic_institution"
+    }
+    if skip_keys is None:
+        skip_keys = default_skip
+    else:
+        skip_keys = set(skip_keys) | default_skip
+    if isinstance(data, dict):
+        return {k: translate_json_values(v, target_lang, skip_keys) if k not in skip_keys else v for k, v in data.items()}
+    elif isinstance(data, list):
+        return [translate_json_values(item, target_lang, skip_keys) for item in data]
+    elif isinstance(data, str):
+        return translate_text(data, target_lang)
+    else:
+        return data
+
+def run_streamlit():
+    import streamlit as st
+    st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
+    st.title("📄 Gerador de Relatórios de Candidatos")
+
+    uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
+    language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
+    company = st.text_input("🏢 Nome da empresa")
+    company_title = st.text_input("💼 Título da vaga")
+
+    # --- Language skill fields (form) ---
+    st.markdown("#### Idiomas e Nível do Candidato")
+    LANGUAGE_LEVEL_CHOICES = [
+        ("NO", 0),
+        ("Elementar", 1),
+        ("Pré-operacional", 2),
+        ("Operacional", 3),
+        ("Intermediário", 4),
+        ("Avançado", 5),
+    ]
+    LEVEL_VALUE_TO_LABEL = {v: k for k, v in LANGUAGE_LEVEL_CHOICES}
+    LANGUAGE_DISPLAY = [
+        {"label_pt": "Inglês", "label_en": "English", "key": "english"},
+        {"label_pt": "Espanhol", "label_en": "Spanish", "key": "spanish"},
+        {"label_pt": "Japonês", "label_en": "Japanese", "key": "japanese"},
+    ]
+    language_skills = {}
+    for lang in LANGUAGE_DISPLAY:
+        col1, col2 = st.columns([1,2])
+        with col1:
+            label = lang["label_pt"] if language == "PT" else lang["label_en"]
+            st.write(f"{label}:")
+        with col2:
+            dropdown_label = f"Selecione o nível para {label}" if language == "PT" else f"Select level for {label}"
+            level = st.selectbox(
+                dropdown_label,
+                options=[choice[1] for choice in LANGUAGE_LEVEL_CHOICES],
+                format_func=lambda x: LEVEL_VALUE_TO_LABEL.get(x, str(x)),
+                key=f"{lang['key']}_level"
+            )
+            language_skills[lang["key"]] = level
+
+    if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
+        with st.spinner("Processando o currículo e gerando relatório..."):
+            file_bytes = uploaded_file.read()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                tmp_pdf.write(file_bytes)
+                tmp_pdf.flush()
+                tmp_pdf_path = tmp_pdf.name
+
+            json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title, language_skills=language_skills)
+            try:
+                os.remove(tmp_pdf_path)
+            except Exception:
+                pass
+
+            st.subheader("🔎 Dados extraídos do currículo:")
+            st.json(json_data)
+            if "error" in json_data:
+                st.error("❌ Erro retornado pelo parser:")
+                st.stop()
+
+            json_data["company"] = company
+
+            template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
+            safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
+            output_filename = f"Relatorio_{safe_name}_{datetime.today().strftime('%Y%m%d')}.docx"
+            output_path = os.path.join(tempfile.gettempdir(), output_filename)
+
+            st.info(f"📄 Caminho do template utilizado: `{template_path}`")
+            if not os.path.isfile(template_path):
+                st.error(f"❌ Template file does not exist: {template_path}")
+                st.stop()
+            try:
+                with open(template_path, "rb") as f:
+                    header = f.read(4)
+                st.info(f"📄 Primeiros bytes do template: {header}")
+                if header != b'PK\x03\x04':
+                    st.error("❌ Template file is not a valid DOCX (ZIP format).")
+                    st.stop()
+                st.info(f"📄 Tamanho do arquivo template: {os.path.getsize(template_path)} bytes")
+                try:
+                    doc = DocxTemplate(template_path)
+                    undeclared = doc.get_undeclared_template_variables()
+                    if undeclared:
+                        st.warning(f"⚠️ Template placeholders not provided in context: {undeclared}")
+                except Exception as e:
+                    st.warning(f"⚠️ Não foi possível checar placeholders do template: {e}")
+            except Exception as e:
+                st.error(f"❌ Could not read template file: {e}")
+                st.stop()
+
+            try:
+                generate_report_from_data(json_data, template_path, output_path)
+                if not os.path.exists(output_path):
+                    st.error("❌ O arquivo DOCX gerado não foi encontrado.")
+                    st.stop()
+                file_size = os.path.getsize(output_path)
+                st.info(f"📄 Tamanho do arquivo DOCX gerado: {file_size} bytes")
+                st.info(f"📄 Caminho do arquivo gerado: `{output_path}`")
+            except Exception as e:
+                st.error("❌ Erro ao gerar o relatório:")
+                st.code(traceback.format_exc())
+                st.stop()
+
+            try:
+                with open(output_path, "rb") as f:
+                    file_bytes = f.read()
+                st.info(f"📄 Primeiros bytes do DOCX gerado: {file_bytes[:4]}")
+                if not file_bytes.startswith(b'PK\x03\x04'):
+                    st.error("❌ O arquivo gerado não é um DOCX válido (espera-se PK header).")
+                    st.stop()
+                st.download_button(
+                    label="📥 Baixar Relatório",
+                    data=file_bytes,
+                    file_name=output_filename,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+            except Exception as e:
+                st.error("❌ Erro ao baixar o relatório:")
+                st.code(traceback.format_exc())
+    else:
+        st.info("Por favor, preencha todos os campos e faça o upload do PDF.")
+
 def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills=None):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
     if not file_path:
@@ -506,28 +680,28 @@ def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills
         if company_title is not None:
             validated_data["company_title"] = company_title
 
-        # --- Languages: Only fill from form input ---
+        # --- Languages: Only fill from form input (with robust fallback) ---
         validated_data["languages"] = []
+        LEVEL_LABEL_MAP_PT = {
+            1: "Elementar",
+            2: "Pré-operacional",
+            3: "Operacional",
+            4: "Intermediário",
+            5: "Avançado ou fluente",
+        }
+        LEVEL_LABEL_MAP_EN = {
+            1: "Elementary",
+            2: "Pre-operational",
+            3: "Operational",
+            4: "Intermediate",
+            5: "Advanced or Fluent",
+        }
+        LANGUAGE_DISPLAY = [
+            {"label_pt": "Inglês", "label_en": "English", "key": "english"},
+            {"label_pt": "Espanhol", "label_en": "Spanish", "key": "spanish"},
+            {"label_pt": "Japonês", "label_en": "Japanese", "key": "japanese"},
+        ]
         if language_skills:
-            LEVEL_LABEL_MAP_PT = {
-                1: "Elementar",
-                2: "Pré-operacional",
-                3: "Operacional",
-                4: "Intermediário",
-                5: "Avançado ou fluente",
-            }
-            LEVEL_LABEL_MAP_EN = {
-                1: "Elementary",
-                2: "Pre-operational",
-                3: "Operational",
-                4: "Intermediate",
-                5: "Advanced or Fluent",
-            }
-            LANGUAGE_DISPLAY = [
-                {"label_pt": "Inglês", "label_en": "English", "key": "english"},
-                {"label_pt": "Espanhol", "label_en": "Spanish", "key": "spanish"},
-                {"label_pt": "Japonês", "label_en": "Japanese", "key": "japanese"},
-            ]
             for lang in LANGUAGE_DISPLAY:
                 lang_key = lang["key"]
                 level = language_skills.get(lang_key, 0)
@@ -535,6 +709,8 @@ def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills
                     label = LEVEL_LABEL_MAP_PT.get(level, "") if validated_data.get("report_lang", report_lang) == "PT" else LEVEL_LABEL_MAP_EN.get(level, "")
                     language_name = lang["label_en"] if validated_data.get("report_lang", report_lang) == "EN" else lang["label_pt"]
                     level_entry = find_level_entry(label, validated_data.get("report_lang", report_lang))
+                    if level_entry is None:
+                        level_entry = {"language_level": label, "level_description": ""}
                     validated_data["languages"].append({
                         "language": language_name,
                         "language_level": level_entry["language_level"],
@@ -700,129 +876,6 @@ def generate_report_from_data(data, template_path, output_path):
     except Exception as e:
         traceback.print_exc()
         raise e
-
-def run_streamlit():
-    import streamlit as st
-    st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
-    st.title("📄 Gerador de Relatórios de Candidatos")
-
-    uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
-    language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
-    company = st.text_input("🏢 Nome da empresa")
-    company_title = st.text_input("💼 Título da vaga")
-
-    # --- Language skill fields (form) ---
-    st.markdown("#### Idiomas e Nível do Candidato")
-    LANGUAGE_LEVEL_CHOICES = [
-        ("NO", 0),
-        ("Elementar", 1),
-        ("Pré-operacional", 2),
-        ("Operacional", 3),
-        ("Intermediário", 4),
-        ("Avançado", 5),
-    ]
-    LEVEL_VALUE_TO_LABEL = {v: k for k, v in LANGUAGE_LEVEL_CHOICES}
-    LANGUAGE_DISPLAY = [
-        {"label_pt": "Inglês", "label_en": "English", "key": "english"},
-        {"label_pt": "Espanhol", "label_en": "Spanish", "key": "spanish"},
-        {"label_pt": "Japonês", "label_en": "Japanese", "key": "japanese"},
-    ]
-    language_skills = {}
-    for lang in LANGUAGE_DISPLAY:
-        col1, col2 = st.columns([1,2])
-        with col1:
-            label = lang["label_pt"] if language == "PT" else lang["label_en"]
-            st.write(f"{label}:")
-        with col2:
-            level = st.selectbox(
-                "",
-                options=[choice[1] for choice in LANGUAGE_LEVEL_CHOICES],
-                format_func=lambda x: LEVEL_VALUE_TO_LABEL.get(x, str(x)),
-                key=f"{lang['key']}_level"
-            )
-            language_skills[lang["key"]] = level
-
-    if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
-        with st.spinner("Processando o currículo e gerando relatório..."):
-            file_bytes = uploaded_file.read()
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                tmp_pdf.write(file_bytes)
-                tmp_pdf.flush()
-                tmp_pdf_path = tmp_pdf.name
-
-            json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title, language_skills=language_skills)
-            try:
-                os.remove(tmp_pdf_path)
-            except Exception:
-                pass
-
-            st.subheader("🔎 Dados extraídos do currículo:")
-            st.json(json_data)
-            if "error" in json_data:
-                st.error("❌ Erro retornado pelo parser:")
-                st.stop()
-
-            json_data["company"] = company
-
-            template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
-            safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
-            output_filename = f"Relatorio_{safe_name}_{datetime.today().strftime('%Y%m%d')}.docx"
-            output_path = os.path.join(tempfile.gettempdir(), output_filename)
-
-            st.info(f"📄 Caminho do template utilizado: `{template_path}`")
-            if not os.path.isfile(template_path):
-                st.error(f"❌ Template file does not exist: {template_path}")
-                st.stop()
-            try:
-                with open(template_path, "rb") as f:
-                    header = f.read(4)
-                st.info(f"📄 Primeiros bytes do template: {header}")
-                if header != b'PK\x03\x04':
-                    st.error("❌ Template file is not a valid DOCX (ZIP format).")
-                    st.stop()
-                st.info(f"📄 Tamanho do arquivo template: {os.path.getsize(template_path)} bytes")
-                try:
-                    doc = DocxTemplate(template_path)
-                    undeclared = doc.get_undeclared_template_variables()
-                    if undeclared:
-                        st.warning(f"⚠️ Template placeholders not provided in context: {undeclared}")
-                except Exception as e:
-                    st.warning(f"⚠️ Não foi possível checar placeholders do template: {e}")
-            except Exception as e:
-                st.error(f"❌ Could not read template file: {e}")
-                st.stop()
-
-            try:
-                generate_report_from_data(json_data, template_path, output_path)
-                if not os.path.exists(output_path):
-                    st.error("❌ O arquivo DOCX gerado não foi encontrado.")
-                    st.stop()
-                file_size = os.path.getsize(output_path)
-                st.info(f"📄 Tamanho do arquivo DOCX gerado: {file_size} bytes")
-                st.info(f"📄 Caminho do arquivo gerado: `{output_path}`")
-            except Exception as e:
-                st.error("❌ Erro ao gerar o relatório:")
-                st.code(traceback.format_exc())
-                st.stop()
-
-            try:
-                with open(output_path, "rb") as f:
-                    file_bytes = f.read()
-                st.info(f"📄 Primeiros bytes do DOCX gerado: {file_bytes[:4]}")
-                if not file_bytes.startswith(b'PK\x03\x04'):
-                    st.error("❌ O arquivo gerado não é um DOCX válido (espera-se PK header).")
-                    st.stop()
-                st.download_button(
-                    label="📥 Baixar Relatório",
-                    data=file_bytes,
-                    file_name=output_filename,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-            except Exception as e:
-                st.error("❌ Erro ao baixar o relatório:")
-                st.code(traceback.format_exc())
-    else:
-        st.info("Por favor, preencha todos os campos e faça o upload do PDF.")
 
 if __name__ == "__main__":
     run_streamlit()
