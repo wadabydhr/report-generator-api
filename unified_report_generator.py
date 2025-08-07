@@ -343,7 +343,7 @@ def translate_text(text, target_lang="EN"):
 def translate_json_values(data, target_lang="EN", skip_keys=None):
     default_skip = {
         "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
-        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company",
+        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company","language"
         "company_start_date", "company_end_date", "start_date", "end_date", "academic_conclusion", "academic_institution"
     }
     if skip_keys is None:
