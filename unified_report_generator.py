@@ -450,54 +450,256 @@ def parse_mm_yyyy(date_str):
     except Exception:
         return None
 
-def translate_text(text, target_lang="EN"):
-    if not isinstance(text, str) or not text.strip():
-        return text
-    if target_lang.upper() not in ("EN", "PT"):
-        return text
+def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills=None):
+    client = Client(api_key=os.getenv("OPENAI_API_KEY"))
+    if not file_path:
+        return {"error": "Missing CV file"}
+
     try:
-        client = Client(api_key=os.getenv("OPENAI_API_KEY"))
-        if target_lang.upper() == "EN":
-            system_prompt = "You are a translation assistant. Translate ONLY to English. Never use Spanish or any language but English."
-            prompt = f"Translate the following text to English. Never use Spanish or any language but English:\n\n{text.strip()}"
-        else:
-            system_prompt = "Você é um assistente de tradução. Traduza SOMENTE para o português. Nunca use espanhol nem outro idioma além de português."
-            prompt = f"Traduza o texto abaixo para o português. Nunca use espanhol nem outro idioma além de português:\n\n{text.strip()}"
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(file_bytes)
+            tmp.flush()
+            tmp_pdf_path = tmp.name
+
+        extracted_text = ""
+        with fitz.open(tmp_pdf_path) as doc:
+            for page in doc:
+                extracted_text += page.get_text()
+
+        try:
+            os.remove(tmp_pdf_path)
+        except Exception:
+            pass
+
+        extracted_text = extracted_text.replace("{", "{{").replace("}", "}}")
+        schema_example = json.dumps(REQUIRED_SCHEMA, ensure_ascii=False, indent=2)
+        extraction_prompt = (
+            EXTRACTION_PROMPT
+            + schema_example
+            + "\n\nReport language: " + report_lang
+            + "\nCV Content:\n"
+            + extracted_text
+        )
+
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": "You output JSON for structured candidate analysis. Follow user instructions."},
+                {"role": "user", "content": extraction_prompt}
             ],
-            temperature=0.2
+            temperature=0.3
         )
-        result = response.choices[0].message.content.strip()
-        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
-            return text
-        if result.strip() == text.strip():
-            return text
-        return result
-    except Exception:
-        return text
+        if not response.choices or not hasattr(response.choices[0], "message"):
+            return {"error": "Unexpected response structure from OpenAI"}
 
-def translate_json_values(data, target_lang="EN", skip_keys=None):
-    default_skip = {
-        "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
-        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company",
-        "company_start_date", "company_end_date", "start_date", "end_date", "academic_conclusion", "academic_institution"
+        json_output = response.choices[0].message.content
+
+        try:
+            parsed_data = json.loads(json_output)
+            validated_data = enforce_schema(parsed_data, REQUIRED_SCHEMA)
+        except json.JSONDecodeError:
+            return {"error": "Could not parse response as JSON. Original content returned.", "json_result": json_output}
+
+        if company_title is not None:
+            validated_data["company_title"] = company_title
+
+        # --- Languages: Only fill from form input ---
+        validated_data["languages"] = []
+        if language_skills:
+            LEVEL_LABEL_MAP_PT = {
+                1: "Elementar",
+                2: "Pré-operacional",
+                3: "Operacional",
+                4: "Intermediário",
+                5: "Avançado ou fluente",
+            }
+            LEVEL_LABEL_MAP_EN = {
+                1: "Elementary",
+                2: "Pre-operational",
+                3: "Operational",
+                4: "Intermediate",
+                5: "Advanced or Fluent",
+            }
+            LANGUAGE_DISPLAY = [
+                {"label_pt": "Inglês", "label_en": "English", "key": "english"},
+                {"label_pt": "Espanhol", "label_en": "Spanish", "key": "spanish"},
+                {"label_pt": "Japonês", "label_en": "Japanese", "key": "japanese"},
+            ]
+            for lang in LANGUAGE_DISPLAY:
+                lang_key = lang["key"]
+                level = language_skills.get(lang_key, 0)
+                if level and level > 0:
+                    label = LEVEL_LABEL_MAP_PT.get(level, "") if validated_data.get("report_lang", report_lang) == "PT" else LEVEL_LABEL_MAP_EN.get(level, "")
+                    language_name = lang["label_en"] if validated_data.get("report_lang", report_lang) == "EN" else lang["label_pt"]
+                    level_entry = find_level_entry(label, validated_data.get("report_lang", report_lang))
+                    validated_data["languages"].append({
+                        "language": language_name,
+                        "language_level": level_entry["language_level"],
+                        "level_description": level_entry["level_description"]
+                    })
+
+        # Translate values to English or Portuguese only if report_lang is EN or PT, and skip excluded keys
+        if validated_data.get("report_lang", "PT") == "EN":
+            validated_data = translate_json_values(validated_data, target_lang="EN")
+        elif validated_data.get("report_lang", "PT") == "PT":
+            validated_data = translate_json_values(validated_data, target_lang="PT")
+
+        return validated_data
+
+    except Exception as e:
+        traceback.print_exc()
+        return {"error": str(e)}
+
+def build_context(data):
+    line_items = []
+    latest_date = None
+    last_company = ""
+    report_lang = data.get("report_lang", "PT")
+
+    for item in data.get("line_items", []):
+        item["cdd_company"] = format_caps(item.get("cdd_company", ""))
+        raw_desc = item.get("company_desc", "")
+        item["company_desc"] = trim_text(format_first(raw_desc), 89)
+        job_posts = []
+        start_dates = []
+        end_dates = []
+        any_present = False
+
+        for job in item.get("job_posts", []):
+            job["job_title"] = smart_title(job.get("job_title", ""))
+
+            raw_start = job.get("start_date", "")
+            norm_start = normalize_to_mm_yyyy(raw_start, report_lang)
+            if valid_mm_yyyy(norm_start):
+                start_val = norm_start
+                start_dt = parse_mm_yyyy(norm_start)
+            else:
+                start_val = "00/0000"
+                start_dt = None
+            job["start_date"] = start_val
+            if start_val != "00/0000" and start_dt:
+                start_dates.append(start_dt)
+
+            raw_end = job.get("end_date", "")
+            norm_end = normalize_to_mm_yyyy(raw_end, report_lang)
+            if is_present_term(norm_end, report_lang):
+                end_val = "PRESENT"
+                any_present = True
+                end_dt = None
+            elif valid_mm_yyyy(norm_end):
+                end_val = norm_end
+                end_dt = parse_mm_yyyy(norm_end)
+                if end_dt:
+                    end_dates.append(end_dt)
+            else:
+                end_val = "00/0000"
+                end_dt = None
+            job["end_date"] = end_val
+
+            if end_val == "PRESENT":
+                any_present = True
+            elif end_val != "00/0000" and end_dt:
+                end_dates.append(end_dt)
+
+            for task in job.get("job_tasks", []):
+                task["task"] = format_first(task.get("task", ""))
+
+            job_posts.append(job)
+
+        if start_dates:
+            item["company_start_date"] = min(start_dates).strftime("%m/%Y")
+        else:
+            item["company_start_date"] = "00/0000"
+
+        if any_present:
+            item["company_end_date"] = "PRESENT"
+        elif end_dates:
+            item["company_end_date"] = max(end_dates).strftime("%m/%Y")
+        else:
+            item["company_end_date"] = "00/0000"
+
+        item["job_count"] = len(job_posts)
+        item["job_posts"] = job_posts
+        line_items.append(item)
+
+    for acad in data.get("academics", []):
+        acad["academic_course"] = smart_title(acad.get("academic_course", ""))
+        acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
+
+    for lang in data.get("languages", []):
+        lang_report_lang = data.get("report_lang", "PT")
+        canonical_level = canonicalize_language_level(lang.get("language_level", ""), lang_report_lang)
+        if canonical_level:
+            lang["language_level"] = canonical_level
+        level_entry = find_level_entry(lang.get("language_level"), lang_report_lang)
+        if level_entry:
+            lang["level_description"] = level_entry["level_description"]
+            lang["language_level"] = level_entry["language_level"]
+        else:
+            lang["level_description"] = ""
+        lang["language"] = smart_title(lang.get("language", ""))
+
+    def end_cmp(end_str):
+        if end_str == "PRESENT":
+            return (2, None)
+        elif valid_mm_yyyy(end_str):
+            return (1, parse_mm_yyyy(end_str))
+        else:
+            return (0, None)
+
+    for item in line_items:
+        end_str = item.get("company_end_date", "")
+        if latest_date is None or end_cmp(end_str) > end_cmp(latest_date):
+            latest_date = end_str
+            last_company = item.get("cdd_company", "")
+
+    context = {
+        "company": format_caps(data.get("company", "")),
+        "company_title": format_caps(data.get("company_title", "")),
+        "cdd_name": format_caps(data.get("cdd_name", "")),
+        "cdd_city": smart_title(data.get("cdd_city", "")) + ", ",
+        "cdd_state": format_caps(data.get("cdd_state", "")),
+        "cdd_ddi": (data.get("cdd_ddi", "") + " ") if data.get("cdd_ddi", "") else "",
+        "cdd_ddd": data.get("cdd_ddd", "") + " ",
+        "cdd_cel": data.get("cdd_cel", ""),
+        "cdd_email": data.get("cdd_email", ""),
+        "cdd_nationality": smart_title(data.get("cdd_nationality", "")) + " ",
+        "cdd_age": data.get("cdd_age", ""),
+        "cdd_personal": " " + data.get("cdd_personal", ""),
+        "abt_background": data.get("abt_background", ""),
+        "bhv_profile": data.get("bhv_profile", ""),
+        "job_bond": data.get("job_bond", ""),
+        "job_wage": data.get("job_wage", ""),
+        "job_variable": data.get("job_variable", ""),
+        "job_meal": data.get("job_meal", ""),
+        "job_food": data.get("job_food", ""),
+        "job_health": data.get("job_health", ""),
+        "job_dental": data.get("job_dental", ""),
+        "job_life": data.get("job_life", ""),
+        "job_pension": data.get("job_pension", ""),
+        "job_others": data.get("job_others", ""),
+        "job_expectation": data.get("job_expectation", ""),
+        "line_items": line_items,
+        "academics": data.get("academics", []),
+        "languages": data.get("languages", []),
+        "last_company": last_company,
+        "report_lang": data.get("report_lang", "PT"),
+        "report_date": format_report_date(data.get("report_lang", "PT"))
     }
-    if skip_keys is None:
-        skip_keys = default_skip
-    else:
-        skip_keys = set(skip_keys) | default_skip
-    if isinstance(data, dict):
-        return {k: translate_json_values(v, target_lang, skip_keys) if k not in skip_keys else v for k, v in data.items()}
-    elif isinstance(data, list):
-        return [translate_json_values(item, target_lang, skip_keys) for item in data]
-    elif isinstance(data, str):
-        return translate_text(data, target_lang)
-    else:
-        return data
+    return context
+
+def generate_report_from_data(data, template_path, output_path):
+    context = build_context(data)
+    try:
+        doc = DocxTemplate(template_path)
+        doc.render(context)
+        doc.save(output_path)
+    except Exception as e:
+        traceback.print_exc()
+        raise e
 
 def run_streamlit():
     import streamlit as st
@@ -534,8 +736,8 @@ def run_streamlit():
         with col2:
             level = st.selectbox(
                 "",
-                options=[choice[1] for choice in LANGUAGE_LEVEL_CHOICES],  # [0,1,2,3,4,5]
-                format_func=lambda x: LEVEL_VALUE_TO_LABEL.get(x, str(x)),  # robust: fallback to str(x) if missing
+                options=[choice[1] for choice in LANGUAGE_LEVEL_CHOICES],
+                format_func=lambda x: LEVEL_VALUE_TO_LABEL.get(x, str(x)),
                 key=f"{lang['key']}_level"
             )
             language_skills[lang["key"]] = level
@@ -621,18 +823,6 @@ def run_streamlit():
                 st.code(traceback.format_exc())
     else:
         st.info("Por favor, preencha todos os campos e faça o upload do PDF.")
-
-# Make sure all other required functions are present from your full original script:
-def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills=None):
-    # ... your language extraction logic here (from previous assistant output) ...
-    # (This function is unchanged except language_skills logic)
-    # Use previous assistant's function body for parse_cv_to_json
-
-def generate_report_from_data(data, template_path, output_path):
-    # ... your original function body ...
-
-def build_context(data):
-    # ... your original function body ...
 
 if __name__ == "__main__":
     run_streamlit()
