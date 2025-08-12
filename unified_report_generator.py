@@ -376,8 +376,8 @@ def run_streamlit():
         ("Elementar", 1),
         ("Pré-operacional", 2),
         ("Operacional", 3),
-        ("Intermediário", 4),
-        ("Avançado", 5),
+        ("Avançado", 4),
+        ("Fluente", 5),
     ]
     LEVEL_VALUE_TO_LABEL = {v: k for k, v in LANGUAGE_LEVEL_CHOICES}
     LANGUAGE_DISPLAY = [
