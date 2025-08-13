@@ -441,9 +441,8 @@ def parse_mm_yyyy(date_str):
 def translate_text(text, target_lang="EN"):
     if not isinstance(text, str) or not text.strip():
         return text
-    # Force only EN or PT as translation targets
     if target_lang.upper() not in ("EN", "PT"):
-        target_lang = "EN"
+        return text
     try:
         client = Client(api_key=os.getenv("OPENAI_API_KEY"))
         if target_lang.upper() == "EN":
@@ -461,11 +460,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        # Defensive: If the translation result is Spanish, ignore and return original text
-        lower_res = result.lower()
-        if " español" in lower_res or "spanish" in lower_res or "idioma español" in lower_res or "idioma espanhol" in lower_res:
-            return text
-        if not result or lower_res.startswith("i'm sorry") or lower_res.startswith("sorry") or lower_res.startswith("as an") or lower_res.startswith("as a") or "could stand for man" in lower_res:
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
             return text
         if result.strip() == text.strip():
             return text
@@ -474,12 +469,9 @@ def translate_text(text, target_lang="EN"):
         return text
 
 def translate_json_values(data, target_lang="EN", skip_keys=None):
-    # Only allow PT or EN as translation targets!
-    if target_lang.upper() not in ("EN", "PT"):
-        target_lang = "EN"
     default_skip = {
         "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
-        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company","language",
+        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company","language"
         "company_start_date", "company_end_date", "start_date", "end_date", "academic_conclusion", "academic_institution"
     }
     if skip_keys is None:
@@ -507,6 +499,7 @@ def run_streamlit():
 
     # --- Language skill fields (form) ---
     st.markdown("#### Idiomas e Nível do Candidato")
+    # Build dropdown levels directly from Google Sheet, preserving order
     dropdown_levels = list(df_levels["language_level"])
     LANGUAGE_DISPLAY = [
         {"label_pt": "Inglês", "label_en": "English", "key": "english"},
@@ -521,6 +514,7 @@ def run_streamlit():
             st.write(f"{label}:")
         with col2:
             dropdown_label = f"Selecione o nível para {label}" if language == "PT" else f"Select level for {label}"
+            # The dropdown uses the actual level value from df_levels
             level = st.selectbox(
                 dropdown_label,
                 options=[""] + dropdown_levels,
@@ -692,11 +686,10 @@ def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills
                         "level_description": level_description
                     })
 
-        # Force translation to PT or EN only; never allow Spanish or other languages in report content
-        report_lang_final = validated_data.get("report_lang", "PT").upper()
-        if report_lang_final == "EN":
+        # Translate values to English or Portuguese only if report_lang is EN or PT, and skip excluded keys
+        if validated_data.get("report_lang", "PT") == "EN":
             validated_data = translate_json_values(validated_data, target_lang="EN")
-        else:
+        elif validated_data.get("report_lang", "PT") == "PT":
             validated_data = translate_json_values(validated_data, target_lang="PT")
 
         return validated_data
@@ -712,4 +705,146 @@ def build_context(data):
     report_lang = data.get("report_lang", "PT")
 
     for item in data.get("line_items", []):
-        item["cdd_company"] = format_caps(item.get("c
+        item["cdd_company"] = format_caps(item.get("cdd_company", ""))
+        raw_desc = item.get("company_desc", "")
+        item["company_desc"] = trim_text(format_first(raw_desc), 89)
+        job_posts = []
+        start_dates = []
+        end_dates = []
+        any_present = False
+
+        for job in item.get("job_posts", []):
+            job["job_title"] = smart_title(job.get("job_title", ""))
+
+            raw_start = job.get("start_date", "")
+            norm_start = normalize_to_mm_yyyy(raw_start, report_lang)
+            if valid_mm_yyyy(norm_start):
+                start_val = norm_start
+                start_dt = parse_mm_yyyy(norm_start)
+            else:
+                start_val = "00/0000"
+                start_dt = None
+            job["start_date"] = start_val
+            if start_val != "00/0000" and start_dt:
+                start_dates.append(start_dt)
+
+            raw_end = job.get("end_date", "")
+            norm_end = normalize_to_mm_yyyy(raw_end, report_lang)
+            if is_present_term(norm_end, report_lang):
+                end_val = "PRESENT"
+                any_present = True
+                end_dt = None
+            elif valid_mm_yyyy(norm_end):
+                end_val = norm_end
+                end_dt = parse_mm_yyyy(norm_end)
+                if end_dt:
+                    end_dates.append(end_dt)
+            else:
+                end_val = "00/0000"
+                end_dt = None
+            job["end_date"] = end_val
+
+            if end_val == "PRESENT":
+                any_present = True
+            elif end_val != "00/0000" and end_dt:
+                end_dates.append(end_dt)
+
+            for task in job.get("job_tasks", []):
+                task["task"] = format_first(task.get("task", ""))
+
+            job_posts.append(job)
+
+        if start_dates:
+            item["company_start_date"] = min(start_dates).strftime("%m/%Y")
+        else:
+            item["company_start_date"] = "00/0000"
+
+        if any_present:
+            item["company_end_date"] = "PRESENT"
+        elif end_dates:
+            item["company_end_date"] = max(end_dates).strftime("%m/%Y")
+        else:
+            item["company_end_date"] = "00/0000"
+
+        item["job_count"] = len(job_posts)
+        item["job_posts"] = job_posts
+        line_items.append(item)
+
+    for acad in data.get("academics", []):
+        acad["academic_course"] = smart_title(acad.get("academic_course", ""))
+        acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
+
+    for lang in data.get("languages", []):
+        lang_report_lang = data.get("report_lang", "PT")
+        canonical_level = canonicalize_language_level(lang.get("language_level", ""), lang_report_lang)
+        if canonical_level:
+            lang["language_level"] = canonical_level
+        level_entry = find_level_entry(lang.get("language_level"), lang_report_lang)
+        if level_entry:
+            lang["level_description"] = level_entry["level_description"]
+            lang["language_level"] = level_entry["language_level"]
+        else:
+            lang["level_description"] = ""
+        lang["language"] = smart_title(lang.get("language", ""))
+
+    def end_cmp(end_str):
+        if end_str == "PRESENT":
+            return (2, None)
+        elif valid_mm_yyyy(end_str):
+            return (1, parse_mm_yyyy(end_str))
+        else:
+            return (0, None)
+
+    for item in line_items:
+        end_str = item.get("company_end_date", "")
+        if latest_date is None or end_cmp(end_str) > end_cmp(latest_date):
+            latest_date = end_str
+            last_company = item.get("cdd_company", "")
+
+    context = {
+        "company": format_caps(data.get("company", "")),
+        "company_title": format_caps(data.get("company_title", "")),
+        "cdd_name": format_caps(data.get("cdd_name", "")),
+        "cdd_city": smart_title(data.get("cdd_city", "")) + ", ",
+        "cdd_state": format_caps(data.get("cdd_state", "")),
+        "cdd_ddi": (data.get("cdd_ddi", "") + " ") if data.get("cdd_ddi", "") else "",
+        "cdd_ddd": data.get("cdd_ddd", "") + " ",
+        "cdd_cel": data.get("cdd_cel", ""),
+        "cdd_email": data.get("cdd_email", ""),
+        "cdd_nationality": smart_title(data.get("cdd_nationality", "")) + " ",
+        "cdd_age": data.get("cdd_age", ""),
+        "cdd_personal": " " + data.get("cdd_personal", ""),
+        "abt_background": data.get("abt_background", ""),
+        "bhv_profile": data.get("bhv_profile", ""),
+        "job_bond": data.get("job_bond", ""),
+        "job_wage": data.get("job_wage", ""),
+        "job_variable": data.get("job_variable", ""),
+        "job_meal": data.get("job_meal", ""),
+        "job_food": data.get("job_food", ""),
+        "job_health": data.get("job_health", ""),
+        "job_dental": data.get("job_dental", ""),
+        "job_life": data.get("job_life", ""),
+        "job_pension": data.get("job_pension", ""),
+        "job_others": data.get("job_others", ""),
+        "job_expectation": data.get("job_expectation", ""),
+        "line_items": line_items,
+        "academics": data.get("academics", []),
+        "languages": data.get("languages", []),
+        "last_company": last_company,
+        "report_lang": data.get("report_lang", "PT"),
+        "report_date": format_report_date(data.get("report_lang", "PT"))
+    }
+    return context
+
+def generate_report_from_data(data, template_path, output_path):
+    context = build_context(data)
+    try:
+        doc = DocxTemplate(template_path)
+        doc.render(context)
+        doc.save(output_path)
+    except Exception as e:
+        traceback.print_exc()
+        raise e
+
+if __name__ == "__main__":
+    run_streamlit()
