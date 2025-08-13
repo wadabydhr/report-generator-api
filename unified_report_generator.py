@@ -322,6 +322,33 @@ for _, row in df_levels.iterrows():
             "level_description": row.get("level_description_en", "")
         }
 
+CANONICAL_LANGUAGE_LEVELS = [
+    {
+        "en": "Elementary",
+        "pt": "Elementar",
+        "matches": ["elementary", "elementar", "basic", "básico"]
+    },
+    {
+        "en": "Pre-operational",
+        "pt": "Pre-operacional",
+        "matches": ["pre-operational", "pre operacional", "preoperational", "pre-operacional", "básico com intermediário", "basic with intermediary"]
+    },
+    {
+        "en": "Operational",
+        "pt": "Operacional",
+        "matches": ["operational", "operacional", "intermediary", "intermediário", "intermediaria"]
+    },
+    {
+        "en": "Extended",
+        "pt": "Intermediário",
+        "matches": ["extended", "intermediário avançado", "intermediary advanced", "advanced intermediary", "intermediário com habilidade avançada", "intermediary with advanced skill"
+    },
+    {
+        "en": "Expert",
+        "pt": "Avançado / Fluente",
+        "matches": ["expert", "advanced", "avançado", "fluente", "fluent", "native"]
+    },
+]
 
 def canonicalize_language_level(raw_level, report_lang):
     if not isinstance(raw_level, str):
