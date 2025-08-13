@@ -341,7 +341,7 @@ CANONICAL_LANGUAGE_LEVELS = [
     {
         "en": "Extended",
         "pt": "Intermediário",
-        "matches": ["extended", "intermediário avançado", "intermediary advanced", "advanced intermediary", "intermediário com habilidade avançada", "intermediary with advanced skill", "extended k[...]
+        "matches": ["extended", "intermediário avançado", "intermediary advanced", "advanced intermediary", "intermediário com habilidade avançada", "intermediary with advanced skill", "extended knowledge"],
     },
     {
         "en": "Expert",
@@ -441,9 +441,9 @@ def parse_mm_yyyy(date_str):
 def translate_text(text, target_lang="EN"):
     if not isinstance(text, str) or not text.strip():
         return text
-    # ENFORCE only English or Portuguese translation, never Spanish or any other language
+    # Force only EN or PT as translation targets
     if target_lang.upper() not in ("EN", "PT"):
-        return text
+        target_lang = "EN"
     try:
         client = Client(api_key=os.getenv("OPENAI_API_KEY"))
         if target_lang.upper() == "EN":
@@ -461,20 +461,22 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        # ENFORCE Spanish is never accepted: if the result contains any Spanish language marker, keep original
-        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
+        # Defensive: If the translation result is Spanish, ignore and return original text
+        lower_res = result.lower()
+        if " español" in lower_res or "spanish" in lower_res or "idioma español" in lower_res or "idioma espanhol" in lower_res:
+            return text
+        if not result or lower_res.startswith("i'm sorry") or lower_res.startswith("sorry") or lower_res.startswith("as an") or lower_res.startswith("as a") or "could stand for man" in lower_res:
             return text
         if result.strip() == text.strip():
-            return text
-        # Strong filter for Spanish: if result has common Spanish words, keep original
-        spanish_keywords = ["el ", "la ", "los ", "las ", "un ", "una ", "unos ", "unas ", "de ", "que ", "y ", "en ", "por ", "con ", "para "]
-        if any(kw in result.lower() for kw in spanish_keywords) and target_lang.upper() in ("EN", "PT"):
             return text
         return result
     except Exception:
         return text
 
 def translate_json_values(data, target_lang="EN", skip_keys=None):
+    # Only allow PT or EN as translation targets!
+    if target_lang.upper() not in ("EN", "PT"):
+        target_lang = "EN"
     default_skip = {
         "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
         "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company","language",
@@ -690,10 +692,11 @@ def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills
                         "level_description": level_description
                     })
 
-        # ENFORCE translation ONLY to PT or EN, never Spanish or other
-        if validated_data.get("report_lang", "PT") == "EN":
+        # Force translation to PT or EN only; never allow Spanish or other languages in report content
+        report_lang_final = validated_data.get("report_lang", "PT").upper()
+        if report_lang_final == "EN":
             validated_data = translate_json_values(validated_data, target_lang="EN")
-        elif validated_data.get("report_lang", "PT") == "PT":
+        else:
             validated_data = translate_json_values(validated_data, target_lang="PT")
 
         return validated_data
@@ -709,16 +712,4 @@ def build_context(data):
     report_lang = data.get("report_lang", "PT")
 
     for item in data.get("line_items", []):
-        item["cdd_company"] = format_caps(item.get("cdd_company", ""))
-        raw_desc = item.get("company_desc", "")
-        item["company_desc"] = trim_text(format_first(raw_desc), 89)
-        job_posts = []
-        start_dates = []
-        end_dates = []
-        any_present = False
-
-        for job in item.get("job_posts", []):
-            job["job_title"] = smart_title(job.get("job_title", ""))
-
-            raw_start = job.get("start_date", "")
-            norm_start = normalize_to_mm_yyyy
+        item["cdd_company"] = format_caps(item.get("c
