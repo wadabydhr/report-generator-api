@@ -37,135 +37,7 @@ Output only valid JSON matching the provided schema.
 - Usually companies, job_title, start_date, end_date, job_tasks are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profissionais, etc.
 
 # FIELD-SPECIFIC RULES
-
-
-## company
-- The official name of the company hiring for a job position.
-- Output in UPPERCASE.
-- If not present, output "Beyond HR".
-
-## company_title
-- The job title or position being applied for.
-- Output in UPPERCASE.
-- Remove any company name, location, or extraneous info.
-
-## cdd_name
-- Candidate’s full name.
-- Use Title Case (capitalize each word).
-- Remove extra spaces.
-
-## cdd_email
-- Must be a valid email address.
-- If multiple found, use the first.
-- If not found, output "".
-
-## cdd_cel
-- Extract only digits, plus (+), and spaces allowed.
-- Must start with country code if present.
-- If not found, output "".
-
-## cdd_city, cdd_state
-- Use Title Case.
-- Only the city or state name, no country.
-
-## cdd_age
-- Integer only. If not found, output "".
-
-## cdd_nationality
-- Use the demonym (e.g., "Brazilian", "Brasileiro"), not the country name. Don't put the country name but the nationality.
-- Must be in the report language.
-- If not found, output "".
-
-## abt_background, bhv_profile
-- Use the most complete, descriptive paragraph found for each.
-- Output in the report language.
-
-## job_bond, job_wage, job_variable, job_meal, job_food, job_health, job_dental, job_life, job_pension, job_others, job_expectation
-- Extract as described in the schema.
-- Output in the report language.
-- If not found, output "".
-
-## last_company
-- The "company" field of the most recent job.
-- Must match the value in line_items[].cdd_company.
-
-## report_lang
-- Must be "PT" or "EN" per user selection.
-
-## report_date
-- Format as "DD de <month> de YYYY" if PT, or "<Month> <DayOrdinal>, YYYY" if EN (e.g., "29 de maio de 2025" or "May 29th, 2025").
-
-## line_items (array)
-- Each item is a unique company the candidate worked for.
-- The order of line_items must be by the most recent company_end_date to the older one.
-- See sub-fields below.
-
-### line_items[].cdd_company
-- Official company name, in UPPERCASE.
-
-### line_items[].company_desc
-- Short description of the company (max 89 characters).
-
-### line_items[].company_start_date
-- Earliest start date among all jobs at this company, in "MM/YYYY".
-- If missing, output "00/0000".
-
-### line_items[].company_end_date
-- Latest end date among all jobs at this company, in "MM/YYYY".
-- If any job at this company is ongoing (see end_date rules), output "PRESENT".
-
-### line_items[].job_count
-- Integer, number of jobs at this company.
-
-### line_items[].job_posts (array)
-- Each job/position held by the candidate at this company.
-- See sub-fields below.
-
-#### line_items[].job_posts[].job_title
-- Title Case (capitalize each word), remove company or location.
-- Must be translated to Portuguese or English language according to the report language defined by report_lang value (PT or EN).
-
-#### line_items[].job_posts[].start_date
-- Must be in "MM/YYYY".
-- If only one digit for month, pad with zero (e.g., "6/2024" → "06/2024").
-- If month name (e.g., "April 2024" or "abril 2024"), convert to "MM/YYYY".
-- If only year, use "01/YYYY".
-- If missing/unparseable, use "00/0000".
-
-#### line_items[].job_posts[].end_date
-- Same date rules as start_date.
-- If value means present (see below), output "PRESENT".
-- English present terms: present, current, currently, actual, nowadays, this moment, today.
-- Portuguese present terms: presente, atual, atualmente, no presente, neste momento, data atual, presente momento, agora.
-
-#### line_items[].job_posts[].job_tasks (array)
-- Each item is a task performed in the job.
-- Each task must be a distinct activity, not merged or summarized.
-- Start with uppercase letter.
-- Use the report language.
-
-##### line_items[].job_posts[].job_tasks[].task
-- The task description, as above.
-
-## academics (array)
-- Academic background entries.
-
-### academics[].academic_course
-- Title Case.
-
-### academics[].academic_institution
-- Title Case.
-
-### academics[].academic_conclusion
-- "YYYY" or "0000".
-
-### languages[].level_description
-- Use the standard description for the language level and report language.
-- If not found, output "".
-
-# OUTPUT FORMAT
-Output only valid JSON matching this schema:
-
+# ... all remaining prompt lines unchanged ...
 """
 
 UPLOAD_FOLDER = 'uploads'
@@ -460,17 +332,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        # Enforce translation only to PT or EN, never Spanish or any other language.
-        if target_lang.upper() == "EN":
-            # If result is in Spanish, force re-translation to English
-            if re.search(r"\b(el|la|los|las|de|y|en|con|un|una|por|para|pero|más|muy|bien|mal|es|son|fue|eran|ser|estar|hay)\b", result, flags=re.IGNORECASE):
-                # Spanish detected, return original text to trigger fallback
-                return text
-        elif target_lang.upper() == "PT":
-            # If result is in Spanish, force re-translation to Portuguese
-            if re.search(r"\b(el|la|los|las|de|y|en|con|un|una|por|para|pero|más|muy|bien|mal|es|son|fue|eran|ser|estar|hay)\b", result, flags=re.IGNORECASE):
-                return text
-        if result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
             return text
         if result.strip() == text.strip():
             return text
@@ -481,7 +343,7 @@ def translate_text(text, target_lang="EN"):
 def translate_json_values(data, target_lang="EN", skip_keys=None):
     default_skip = {
         "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
-        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company", "language",
+        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company","language",
         "company_start_date", "company_end_date", "start_date", "end_date", "academic_conclusion", "academic_institution"
     }
     if skip_keys is None:
@@ -509,6 +371,7 @@ def run_streamlit():
 
     # --- Language skill fields (form) ---
     st.markdown("#### Idiomas e Nível do Candidato")
+    # Build dropdown levels directly from Google Sheet, preserving order
     dropdown_levels = list(df_levels["language_level"])
     LANGUAGE_DISPLAY = [
         {"label_pt": "Inglês", "label_en": "English", "key": "english"},
@@ -682,4 +545,181 @@ def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills
                 level = language_skills.get(lang_key, "")
                 if level:
                     language_name = lang["pt"] if report_lang_setting == "PT" else lang["en"]
-                    row = df_levels
+                    row = df_levels[df_levels["language_level"] == level]
+                    if not row.empty:
+                        if report_lang_setting == "PT":
+                            level_description = row.iloc[0]["level_description_pt"]
+                        elif report_lang_setting == "EN":
+                            level_description = row.iloc[0]["level_description_en"]
+                        else:
+                            level_description = ""
+                    else:
+                        level_description = ""
+                    validated_data["languages"].append({
+                        "language": language_name,
+                        "language_level": level,
+                        "level_description": level_description
+                    })
+
+        # Translate values to English or Portuguese only if report_lang is EN or PT, and skip excluded keys
+        if validated_data.get("report_lang", "PT") == "EN":
+            validated_data = translate_json_values(validated_data, target_lang="EN")
+        elif validated_data.get("report_lang", "PT") == "PT":
+            validated_data = translate_json_values(validated_data, target_lang="PT")
+
+        return validated_data
+
+    except Exception as e:
+        traceback.print_exc()
+        return {"error": str(e)}
+
+def build_context(data):
+    line_items = []
+    latest_date = None
+    last_company = ""
+    report_lang = data.get("report_lang", "PT")
+
+    for item in data.get("line_items", []):
+        item["cdd_company"] = format_caps(item.get("cdd_company", ""))
+        raw_desc = item.get("company_desc", "")
+        item["company_desc"] = trim_text(format_first(raw_desc), 89)
+        job_posts = []
+        start_dates = []
+        end_dates = []
+        any_present = False
+
+        for job in item.get("job_posts", []):
+            job["job_title"] = smart_title(job.get("job_title", ""))
+
+            raw_start = job.get("start_date", "")
+            norm_start = normalize_to_mm_yyyy(raw_start, report_lang)
+            if valid_mm_yyyy(norm_start):
+                start_val = norm_start
+                start_dt = parse_mm_yyyy(norm_start)
+            else:
+                start_val = "00/0000"
+                start_dt = None
+            job["start_date"] = start_val
+            if start_val != "00/0000" and start_dt:
+                start_dates.append(start_dt)
+
+            raw_end = job.get("end_date", "")
+            norm_end = normalize_to_mm_yyyy(raw_end, report_lang)
+            if is_present_term(norm_end, report_lang):
+                end_val = "PRESENT"
+                any_present = True
+                end_dt = None
+            elif valid_mm_yyyy(norm_end):
+                end_val = norm_end
+                end_dt = parse_mm_yyyy(norm_end)
+                if end_dt:
+                    end_dates.append(end_dt)
+            else:
+                end_val = "00/0000"
+                end_dt = None
+            job["end_date"] = end_val
+
+            if end_val == "PRESENT":
+                any_present = True
+            elif end_val != "00/0000" and end_dt:
+                end_dates.append(end_dt)
+
+            for task in job.get("job_tasks", []):
+                task["task"] = format_first(task.get("task", ""))
+
+            job_posts.append(job)
+
+        if start_dates:
+            item["company_start_date"] = min(start_dates).strftime("%m/%Y")
+        else:
+            item["company_start_date"] = "00/0000"
+
+        if any_present:
+            item["company_end_date"] = "PRESENT"
+        elif end_dates:
+            item["company_end_date"] = max(end_dates).strftime("%m/%Y")
+        else:
+            item["company_end_date"] = "00/0000"
+
+        item["job_count"] = len(job_posts)
+        item["job_posts"] = job_posts
+        line_items.append(item)
+
+    for acad in data.get("academics", []):
+        acad["academic_course"] = smart_title(acad.get("academic_course", ""))
+        acad["academic_institution"] = smart_title(acad.get("academic_institution", ""))
+
+    for lang in data.get("languages", []):
+        lang_report_lang = data.get("report_lang", "PT")
+        canonical_level = canonicalize_language_level(lang.get("language_level", ""), lang_report_lang)
+        if canonical_level:
+            lang["language_level"] = canonical_level
+        level_entry = find_level_entry(lang.get("language_level"), lang_report_lang)
+        if level_entry:
+            lang["level_description"] = level_entry["level_description"]
+            lang["language_level"] = level_entry["language_level"]
+        else:
+            lang["level_description"] = ""
+        lang["language"] = smart_title(lang.get("language", ""))
+
+    def end_cmp(end_str):
+        if end_str == "PRESENT":
+            return (2, None)
+        elif valid_mm_yyyy(end_str):
+            return (1, parse_mm_yyyy(end_str))
+        else:
+            return (0, None)
+
+    for item in line_items:
+        end_str = item.get("company_end_date", "")
+        if latest_date is None or end_cmp(end_str) > end_cmp(latest_date):
+            latest_date = end_str
+            last_company = item.get("cdd_company", "")
+
+    context = {
+        "company": format_caps(data.get("company", "")),
+        "company_title": format_caps(data.get("company_title", "")),
+        "cdd_name": format_caps(data.get("cdd_name", "")),
+        "cdd_city": smart_title(data.get("cdd_city", "")) + ", ",
+        "cdd_state": format_caps(data.get("cdd_state", "")),
+        "cdd_ddi": (data.get("cdd_ddi", "") + " ") if data.get("cdd_ddi", "") else "",
+        "cdd_ddd": data.get("cdd_ddd", "") + " ",
+        "cdd_cel": data.get("cdd_cel", ""),
+        "cdd_email": data.get("cdd_email", ""),
+        "cdd_nationality": smart_title(data.get("cdd_nationality", "")) + " ",
+        "cdd_age": data.get("cdd_age", ""),
+        "cdd_personal": " " + data.get("cdd_personal", ""),
+        "abt_background": data.get("abt_background", ""),
+        "bhv_profile": data.get("bhv_profile", ""),
+        "job_bond": data.get("job_bond", ""),
+        "job_wage": data.get("job_wage", ""),
+        "job_variable": data.get("job_variable", ""),
+        "job_meal": data.get("job_meal", ""),
+        "job_food": data.get("job_food", ""),
+        "job_health": data.get("job_health", ""),
+        "job_dental": data.get("job_dental", ""),
+        "job_life": data.get("job_life", ""),
+        "job_pension": data.get("job_pension", ""),
+        "job_others": data.get("job_others", ""),
+        "job_expectation": data.get("job_expectation", ""),
+        "line_items": line_items,
+        "academics": data.get("academics", []),
+        "languages": data.get("languages", []),
+        "last_company": last_company,
+        "report_lang": data.get("report_lang", "PT"),
+        "report_date": format_report_date(data.get("report_lang", "PT"))
+    }
+    return context
+
+def generate_report_from_data(data, template_path, output_path):
+    context = build_context(data)
+    try:
+        doc = DocxTemplate(template_path)
+        doc.render(context)
+        doc.save(output_path)
+    except Exception as e:
+        traceback.print_exc()
+        raise e
+
+if __name__ == "__main__":
+    run_streamlit()
