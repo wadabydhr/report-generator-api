@@ -272,7 +272,7 @@ def find_level_entry(level_value, report_lang):
             return EN_LEVELS[key]
         for k in EN_LEVELS:
             if key in k or k in key:
-                return EN_LEVELS[k]
+                return ENLEVELS[k]
     return None
 
 PRESENT_TERMS_EN = ["present", "current", "currently", "actual", "nowadays", "this moment", "today"]
@@ -354,7 +354,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or   result.lower().startswith("as a") or "could stand for man" in result.lower():
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or  result.lower().startswith("as a") or "could stand for man" in result.lower():
             return text
         if result.strip() == text.strip():
             return text
@@ -391,6 +391,7 @@ def run_streamlit():
 
     # --- Company dropdown with hardcoded list ---
     company_names = [
+        "  ",
         "ADVICS AUTOMOTIVA LATIN AMERICA LTDA.",
         "AISIN AI BRASIL INDUSTRIA AUTOMOTIVA LTDA.",
         "AOKI E YAMASHITA ADVOGADOS",
@@ -437,17 +438,9 @@ def run_streamlit():
         "TOYOTA BOSHOKU DO BRASIL LTDA.",
         "TOYOTA MATERIAL HANDLING MERCOSUR INDUSTRIA E COMERCIO DE EQUIPAMENTOS LTDA.",
         "TOYOBO DO BRASIL PRODUTOS BIOLOGICOS LTDA.",
-        "TORAY DO BRASIL LTDA.",
-        "OUTROS"
+        "TORAY DO BRASIL LTDA."
     ]
     company = st.selectbox("🏢 Nome da empresa", options=company_names)
-
-    # --- Hidden text field for 'OUTROS' selection ---
-    company_other = ""
-    if company == "OUTROS":
-        company_other = st.text_input("Digite o nome da empresa:", value="", key="company_other")
-    else:
-        company_other = ""
 
     company_title = st.text_input("💼 Título da vaga")
 
@@ -482,9 +475,6 @@ def run_streamlit():
                 tmp_pdf.flush()
                 tmp_pdf_path = tmp_pdf.name
 
-            # Use company_other if 'OUTROS' is selected, otherwise use company
-            selected_company = company_other if company == "OUTROS" and company_other else company
-
             json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title, language_skills=language_skills)
             try:
                 os.remove(tmp_pdf_path)
@@ -497,7 +487,7 @@ def run_streamlit():
                 st.error("❌ Erro retornado pelo parser:")
                 st.stop()
 
-            json_data["company"] = selected_company
+            json_data["company"] = company
 
             template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
             safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
