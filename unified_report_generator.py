@@ -354,7 +354,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or  result.lower().startswith("as a") or "could stand for man" in result.lower():
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or  result.lower().startswith("as a") or "could stand for ma[...]
             return text
         if result.strip() == text.strip():
             return text
@@ -389,12 +389,58 @@ def run_streamlit():
     uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
     language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
 
-    # --- Company dropdown from MongoDB ---
-    company_names = get_company_names_from_mongo()
-    if company_names:
-        company = st.selectbox("🏢 Nome da empresa", options=company_names)
-    else:
-        company = st.text_input("🏢 Nome da empresa (MongoDB vazio ou erro)")
+    # --- Company dropdown with hardcoded list ---
+    company_names = [
+        "ADVICS AUTOMOTIVA LATIN AMERICA LTDA.",
+        "AISIN AI BRASIL INDUSTRIA AUTOMOTIVA LTDA.",
+        "AOKI E YAMASHITA ADVOGADOS",
+        "AOKI, FERREIRA, MATTIOLI & YAMASHITA PROPRIEDADE INTELECTUAL LTDA.",
+        "CALJ TREINAMENTO E ENSINO DE IDIOMAS S/C LTDA.",
+        "CANON DO BRASIL INDUSTRIA E COMERCIO LTDA.",
+        "CREDIT SAISON BRAZIL PARTICIPAÇÕES SOCIEDADE LIMITADA",
+        "DAIKIN AR CONDICIONADO AMAZONAS LTDA.",
+        "DAISO BRASIL COMÉRCIO E IMPORTAÇÃO LTDA.",
+        "DETALLIA FITAS TEXTEIS LTDA.",
+        "DMG MORI BRASIL COMERCIO DE EQUIPAMENTOS INDUSTRIAIS LTDA.",
+        "GSI CREOS BRASIL LTDA.",
+        "ISHIDA DO BRASIL LTDA.",
+        "ITOCHU BRASIL S.A.",
+        "JCM COMERCIO MECATRONICA BRASIL LTDA.",
+        "JCR DO BRASIL FARMACEUTICOS IMPORTAÇÃO E EXPORTAÇÃO LTDA.",
+        "JFE SHOJI DO BRASIL LTDA.",
+        "KANEMATSU AMÉRICA DO SUL IMPORTAÇÃO E EXPORTAÇÃO LTDA.",
+        "KIKKOMAN DO BRASIL INDÚSTRIA E COMÉRCIO DE ALIMENTOS E BEBIDAS LTDA.",
+        "KINTETSU WORLD EXPRESS DO BRASIL LTDA.",
+        "KINTO BRASIL SERVIÇOS DE MOBILIDADE",
+        "KONICA MINOLTA BUSINESS SOLUTIONS DO BRASIL LTDA.",
+        "KRONOS ALIMENTOS LTDA.",
+        "KUMON AMÉRICA DO SUL INSTITUTO DE EDUCAÇÃO LTDA.",
+        "MIURA CORRETORA DE SEGUROS LTDA.",
+        "MITSUI & CO (BRASIL) S.A.",
+        "MITSUI GÁS",
+        "MRO TORRES COMÉRCIO DE CALÇADOS LTDA.",
+        "NIPPON EXPRESS DO BRASIL TRANSPORTES INTERNAC. LTDA.",
+        "NITTO DENKO AMÉRICA LATINA LTDA.",
+        "NOVA ERA SILICON S.A.",
+        "RAIAR ORGÂNICO S.A.",
+        "ROLAND BRASIL IMPORTAÇÃO, EXPORTAÇÃO, COMÉRCIO, REPRESENTAÇÃO E SERVIÇOS LTDA.",
+        "ROOFTOP TECNOLOGIA DE ATIVOS S.A.",
+        "SOJITZ DO BRASIL S.A.",
+        "SPINULA SYSTEMS LTDA.",
+        "SPRIX BRASIL SERVIÇOS DE EDUCAÇÃO E TECNOLOGIA LTDA.",
+        "SUMIDENSO DO BRASIL INDUSTRIAS ELETRICAS LTDA.",
+        "SUMITOMO CORPORATION DO BRASIL S.A.",
+        "SUNGUIDER COMÉRCIO IMPORTAÇÃO E EXPORTAÇÃO LTDA.",
+        "T LINE VEÍCULOS LTDA.",
+        "TAM AVIACAO EXECUTIVA E TAXI AEREO S.A.",
+        "TBP IMPORTAÇÃO E COMÉRCIO DE COSMÉTICOS LTDA.",
+        "TOYOTA BOSHOKU DO BRASIL LTDA.",
+        "TOYOTA MATERIAL HANDLING MERCOSUR INDUSTRIA E COMERCIO DE EQUIPAMENTOS LTDA.",
+        "TOYOBO DO BRASIL PRODUTOS BIOLOGICOS LTDA.",
+        "TORAY DO BRASIL LTDA.",
+        "OUTROS"
+    ]
+    company = st.selectbox("🏢 Nome da empresa", options=company_names)
 
     company_title = st.text_input("💼 Título da vaga")
 
