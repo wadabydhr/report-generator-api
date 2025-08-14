@@ -10,7 +10,12 @@ import pandas as pd
 import re
 
 # --- MongoDB integration for company dropdown ---
-from pymongo import MongoClient
+try:
+    from pymongo import MongoClient  # Optional dependency
+    MONGO_AVAILABLE = True
+except Exception:
+    MongoClient = None  # type: ignore
+    MONGO_AVAILABLE = False
 
 # MongoDB connection info (provided by user)
 MONGO_URI = "mongodb+srv://hirokiwada:BYNDHR19@hiw@byndhr-cluster.1zn6ljk.mongodb.net/?retryWrites=true&w=majority&appName=BYNDHR-CLUSTER"
@@ -18,12 +23,22 @@ MONGO_DB_NAME = "report_generator"
 MONGO_COMPANY_COLLECTION = "companies"
 MONGO_COMPANY_KEY = "company_name"
 
-mongo_client = MongoClient(MONGO_URI)
-mongo_db = mongo_client[MONGO_DB_NAME]
-company_collection = mongo_db[MONGO_COMPANY_COLLECTION]
+mongo_client = None
+mongo_db = None
+company_collection = None
+if MONGO_AVAILABLE:
+    try:
+        mongo_client = MongoClient(MONGO_URI)
+        mongo_db = mongo_client[MONGO_DB_NAME]
+        company_collection = mongo_db[MONGO_COMPANY_COLLECTION]
+    except Exception:
+        traceback.print_exc()
+        company_collection = None
 
 def get_company_names_from_mongo():
     try:
+        if not MONGO_AVAILABLE or not company_collection:
+            return []
         companies = company_collection.find({}, {MONGO_COMPANY_KEY: 1, "_id": 0})
         company_names = sorted([c[MONGO_COMPANY_KEY] for c in companies if MONGO_COMPANY_KEY in c], key=lambda x: x.lower())
         return company_names
@@ -39,7 +54,7 @@ Never invent, summarize, or infer data not present. Just do spelling and grammar
 Output only valid JSON matching the provided schema.
 
 # GLOBAL RULES
-- For more than one column text document, every column must be read from left to right and top to down, before move to the next text column. The continuity of text logic follows this rule for two or more columns.
+- For more than one column text document, every column must be read from left to right and top to down, before move to the next text column. The continuity of text logic follows this rule for two or m[...]
 - Every key in the schema must appear in the output, even if its value is empty.
 - If a value is missing or unparseable, fill with an empty string (""), empty list ([]), or the correct empty type.
 - Never invent, summarize, or infer data not found in the input.
@@ -56,7 +71,7 @@ Output only valid JSON matching the provided schema.
 - If you miss any, your output is invalid.
 - Never summarize, merge, or omit any company, employer, or position. If the CV lists 5 companies, your output MUST contain 5 items in line_items.
 - Do not omit, merge, or skip any company.
-- Usually companies, job_title, start_date, end_date, job_tasks are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profissionais, etc.
+- Usually companies, job_title, start_date, end_date, job_tasks are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência,[...]
 
 # FIELD-SPECIFIC RULES
 ... (unchanged, rest of prompt) ...
@@ -354,7 +369,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man[...]
             return text
         if result.strip() == text.strip():
             return text
