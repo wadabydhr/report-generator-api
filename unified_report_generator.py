@@ -391,7 +391,7 @@ def run_streamlit():
 
     # --- Company dropdown with hardcoded list ---
     company_names = [
-        "  ",
+        "-",
         "ADVICS AUTOMOTIVA LATIN AMERICA LTDA.",
         "AISIN AI BRASIL INDUSTRIA AUTOMOTIVA LTDA.",
         "AOKI E YAMASHITA ADVOGADOS",
