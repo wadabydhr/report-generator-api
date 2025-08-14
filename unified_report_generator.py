@@ -235,7 +235,7 @@ CANONICAL_LANGUAGE_LEVELS = [
     {
         "en": "Extended",
         "pt": "Intermediário",
-        "matches": ["extended", "intermediário avançado", "intermediary advanced", "advanced intermediary", "intermediário com habilidade avançada", "intermediary with advanced skill", 
+        "matches": ["extended", "intermediário avançado", "intermediary advanced", "advanced intermediary", "intermediário com habilidade avançada", "intermediary with advanced skill"], 
     },
     {
         "en": "Expert",
