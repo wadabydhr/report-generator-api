@@ -11,3 +11,4 @@ gunicorn==21.2.0
 requests
 flask-cors
 streamlit==1.33.0
+pymongo
