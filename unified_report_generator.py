@@ -13,7 +13,7 @@ import re
 from pymongo import MongoClient
 
 # MongoDB connection info (provided by user)
-MONGO_URI = "mongodb+srv://hirokiwada:BYNDHR19@hiw@byndhr-cluster.1zn6ljk.mongodb.net/?retryWrites=true&w=majority&appName=BYNDHR-CLUSTER"
+MONGO_URI = "mongodb+srv://hirokiwada:BYNDHR19%40hiw@byndhr-cluster.1zn6ljk.mongodb.net/?retryWrites=true&w=majority&appName=BYNDHR-CLUSTER"
 MONGO_DB_NAME = "report_generator"
 MONGO_COMPANY_COLLECTION = "companies"
 MONGO_COMPANY_KEY = "company_name"
@@ -354,8 +354,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        # Fix: avoid unterminated/truncated string literal by simplifying the guard checks
-        if not result or any(result.lower().startswith(p) for p in ("i'm sorry", "sorry", "as an", "as a")):
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man[...]
             return text
         if result.strip() == text.strip():
             return text
