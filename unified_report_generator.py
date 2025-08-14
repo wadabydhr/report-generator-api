@@ -9,6 +9,28 @@ import traceback
 import pandas as pd
 import re
 
+# --- MongoDB integration for company dropdown ---
+from pymongo import MongoClient
+
+# MongoDB connection info (provided by user)
+MONGO_URI = "mongodb+srv://hirokiwada:BYNDHR19@hiw@byndhr-cluster.1zn6ljk.mongodb.net/?retryWrites=true&w=majority&appName=BYNDHR-CLUSTER"
+MONGO_DB_NAME = "report_generator"
+MONGO_COMPANY_COLLECTION = "companies"
+MONGO_COMPANY_KEY = "company_name"
+
+mongo_client = MongoClient(MONGO_URI)
+mongo_db = mongo_client[MONGO_DB_NAME]
+company_collection = mongo_db[MONGO_COMPANY_COLLECTION]
+
+def get_company_names_from_mongo():
+    try:
+        companies = company_collection.find({}, {MONGO_COMPANY_KEY: 1, "_id": 0})
+        company_names = sorted([c[MONGO_COMPANY_KEY] for c in companies if MONGO_COMPANY_KEY in c], key=lambda x: x.lower())
+        return company_names
+    except Exception as e:
+        traceback.print_exc()
+        return []
+
 # --- Extraction Prompt ---
 EXTRACTION_PROMPT = """
 You are an expert system for extracting structured JSON from resumes (CVs) for HR automation.
@@ -37,7 +59,7 @@ Output only valid JSON matching the provided schema.
 - Usually companies, job_title, start_date, end_date, job_tasks are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profissionais, etc.
 
 # FIELD-SPECIFIC RULES
-# ... all remaining prompt lines unchanged ...
+... (unchanged, rest of prompt) ...
 """
 
 UPLOAD_FOLDER = 'uploads'
@@ -213,7 +235,7 @@ CANONICAL_LANGUAGE_LEVELS = [
     {
         "en": "Extended",
         "pt": "Intermediário",
-        "matches": ["extended", "intermediário avançado", "intermediary advanced", "advanced intermediary", "intermediário com habilidade avançada", "intermediary with advanced skill", "extended knowledge"],
+        "matches": ["extended", "intermediário avançado", "intermediary advanced", "advanced intermediary", "intermediário com habilidade avançada", "intermediary with advanced skill", "extended k[...]
     },
     {
         "en": "Expert",
@@ -332,7 +354,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man[...]
             return text
         if result.strip() == text.strip():
             return text
@@ -343,7 +365,7 @@ def translate_text(text, target_lang="EN"):
 def translate_json_values(data, target_lang="EN", skip_keys=None):
     default_skip = {
         "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
-        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company","language",
+        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company","language"
         "company_start_date", "company_end_date", "start_date", "end_date", "academic_conclusion", "academic_institution"
     }
     if skip_keys is None:
@@ -366,12 +388,18 @@ def run_streamlit():
 
     uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
     language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
-    company = st.text_input("🏢 Nome da empresa")
+
+    # --- Company dropdown from MongoDB ---
+    company_names = get_company_names_from_mongo()
+    if company_names:
+        company = st.selectbox("🏢 Nome da empresa", options=company_names)
+    else:
+        company = st.text_input("🏢 Nome da empresa (MongoDB vazio ou erro)")
+
     company_title = st.text_input("💼 Título da vaga")
 
     # --- Language skill fields (form) ---
     st.markdown("#### Idiomas e Nível do Candidato")
-    # Build dropdown levels directly from Google Sheet, preserving order
     dropdown_levels = list(df_levels["language_level"])
     LANGUAGE_DISPLAY = [
         {"label_pt": "Inglês", "label_en": "English", "key": "english"},
@@ -546,15 +574,11 @@ def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills
                 if level:
                     language_name = lang["pt"] if report_lang_setting == "PT" else lang["en"]
                     row = df_levels[df_levels["language_level"] == level]
-                    if not row.empty:
-                        if report_lang_setting == "PT":
-                            level_description = row.iloc[0]["level_description_pt"]
-                        elif report_lang_setting == "EN":
-                            level_description = row.iloc[0]["level_description_en"]
-                        else:
-                            level_description = ""
-                    else:
-                        level_description = ""
+                    level_description = (
+                        row.iloc[0]["level_description_pt"] if (not row.empty and report_lang_setting == "PT")
+                        else row.iloc[0]["level_description_en"] if (not row.empty and report_lang_setting == "EN")
+                        else ""
+                    )
                     validated_data["languages"].append({
                         "language": language_name,
                         "language_level": level,

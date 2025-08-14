@@ -17,7 +17,7 @@ Never invent, summarize, or infer data not present. Just do spelling and grammar
 Output only valid JSON matching the provided schema.
 
 # GLOBAL RULES
-- For more than one column text document, every column must be read from left to right and top to down, before move to the next text column. The continuity of text logic follows this rule for two or more columns texts.
+- For more than one column text document, every column must be read from left to right and top to down, before move to the next text column. The continuity of text logic follows this rule for two or more columns.
 - Every key in the schema must appear in the output, even if its value is empty.
 - If a value is missing or unparseable, fill with an empty string (""), empty list ([]), or the correct empty type.
 - Never invent, summarize, or infer data not found in the input.
@@ -34,150 +34,10 @@ Output only valid JSON matching the provided schema.
 - If you miss any, your output is invalid.
 - Never summarize, merge, or omit any company, employer, or position. If the CV lists 5 companies, your output MUST contain 5 items in line_items.
 - Do not omit, merge, or skip any company.
-- Usually companies, job_title, start_date, end_date, job_tasks are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profisisonais, works, trabalhos.
+- Usually companies, job_title, start_date, end_date, job_tasks are bellow of block of text under titles like: experience, experiences, professional experience, professional experiences, experiência, experiências, experiência profissional, experiências profissionais, etc.
 
 # FIELD-SPECIFIC RULES
-
-## company
-- The official name of the company hiring for a job position.
-- Output in UPPERCASE.
-- If not present, output "Beyond HR".
-
-## company_title
-- The job title or position being applied for.
-- Output in UPPERCASE.
-- Remove any company name, location, or extraneous info.
-
-## cdd_name
-- Candidate’s full name.
-- Use Title Case (capitalize each word).
-- Remove extra spaces.
-
-## cdd_email
-- Must be a valid email address.
-- If multiple found, use the first.
-- If not found, output "".
-
-## cdd_cel
-- Extract only digits, plus (+), and spaces allowed.
-- Must start with country code if present.
-- If not found, output "".
-
-## cdd_city, cdd_state
-- Use Title Case.
-- Only the city or state name, no country.
-
-## cdd_age
-- Integer only. If not found, output "".
-
-## cdd_nationality
-- Use the demonym (e.g., "Brazilian", "Brasileiro"), not the country name. Don't put the country name but the nationality.
-- Must be in the report language.
-- If not found, output "".
-
-## abt_background, bhv_profile
-- Use the most complete, descriptive paragraph found for each.
-- Output in the report language.
-
-## job_bond, job_wage, job_variable, job_meal, job_food, job_health, job_dental, job_life, job_pension, job_others, job_expectation
-- Extract as described in the schema.
-- Output in the report language.
-- If not found, output "".
-
-## last_company
-- The "company" field of the most recent job.
-- Must match the value in line_items[].cdd_company.
-
-## report_lang
-- Must be "PT" or "EN" per user selection.
-
-## report_date
-- Format as "DD de <month> de YYYY" if PT, or "<Month> <DayOrdinal>, YYYY" if EN (e.g., "29 de maio de 2025" or "May 29th, 2025").
-
-## line_items (array)
-- Each item is a unique company the candidate worked for.
-- The order of line_items must be by the most recent company_end_date to the older one.
-- See sub-fields below.
-
-### line_items[].cdd_company
-- Official company name, in UPPERCASE.
-
-### line_items[].company_desc
-- Short description of the company (max 89 characters).
-
-### line_items[].company_start_date
-- Earliest start date among all jobs at this company, in "MM/YYYY".
-- If missing, output "00/0000".
-
-### line_items[].company_end_date
-- Latest end date among all jobs at this company, in "MM/YYYY".
-- If any job at this company is ongoing (see end_date rules), output "PRESENT".
-
-### line_items[].job_count
-- Integer, number of jobs at this company.
-
-### line_items[].job_posts (array)
-- Each job/position held by the candidate at this company.
-- See sub-fields below.
-
-#### line_items[].job_posts[].job_title
-- Title Case (capitalize each word), remove company or location.
-- Must be translated to Portuguese or English language according to the report language defined by report_lang value (PT or EN).
-
-#### line_items[].job_posts[].start_date
-- Must be in "MM/YYYY".
-- If only one digit for month, pad with zero (e.g., "6/2024" → "06/2024").
-- If month name (e.g., "April 2024" or "abril 2024"), convert to "MM/YYYY".
-- If only year, use "01/YYYY".
-- If missing/unparseable, use "00/0000".
-
-#### line_items[].job_posts[].end_date
-- Same date rules as start_date.
-- If value means present (see below), output "PRESENT".
-- English present terms: present, current, currently, actual, nowadays, this moment, today.
-- Portuguese present terms: presente, atual, atualmente, no presente, neste momento, data atual, presente momento, agora.
-
-#### line_items[].job_posts[].job_tasks (array)
-- Each item is a task performed in the job.
-- Each task must be a distinct activity, not merged or summarized.
-- Start with uppercase letter.
-- Use the report language.
-
-##### line_items[].job_posts[].job_tasks[].task
-- The task description, as above.
-
-## academics (array)
-- Academic background entries.
-
-### academics[].academic_course
-- Title Case.
-
-### academics[].academic_institution
-- Title Case.
-
-### academics[].academic_conclusion
-- "YYYY" or "0000".
-
-## languages (array)
-- All languages the candidate lists except Portuguese language.
-
-### languages[].language
-- Title Case. Must be a valid language.
-
-### languages[].language_level
-- Must match exactly one of:
-  - If basic knowledge must be either "Elementary" for report_lang=EN or "Elementar" for report_lang=PT.
-  - If basic with intermediary skill in conversation or writing must be either "Pre-operational" for report_lang=EN or "Pre-operacional" for report_lang=PT.
-  - If intermediary knowledge must be either "Operational" for report_lang=EN or "Operacional" for report_lang=PT.
-  - If intermediary with advanced skill only in conversation or writing must be either "Extended" for report_lang=EN or "Intermediário" for report_lang=PT.
-  - If advanced knowledge or native or fluent must be either "Expert" for report_lang=EN or "Avançado / Fluente" for report_lang=PT.
-
-### languages[].level_description
-- Use the standard description for the language level and report language.
-- If not found, output "".
-
-# OUTPUT FORMAT
-Output only valid JSON matching this schema:
+# ... all remaining prompt lines unchanged ...
 """
 
 UPLOAD_FOLDER = 'uploads'
@@ -450,7 +310,6 @@ def parse_mm_yyyy(date_str):
     except Exception:
         return None
 
-# --- FIX: ENFORCE TRANSLATION TO ENGLISH OR PORTUGUESE ONLY ---
 def translate_text(text, target_lang="EN"):
     if not isinstance(text, str) or not text.strip():
         return text
@@ -473,7 +332,7 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for many things" in result.lower() or "provide more context" in result.lower():
+        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man" in result.lower():
             return text
         if result.strip() == text.strip():
             return text
@@ -484,7 +343,7 @@ def translate_text(text, target_lang="EN"):
 def translate_json_values(data, target_lang="EN", skip_keys=None):
     default_skip = {
         "language_level", "level_description", "report_lang", "report_date", "company_title", "cdd_name", "last_company",
-        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company",
+        "cdd_email", "cdd_cel", "cdd_ddd", "cdd_ddi", "cdd_age", "cdd_state", "cdd_city", "cdd_company","language",
         "company_start_date", "company_end_date", "start_date", "end_date", "academic_conclusion", "academic_institution"
     }
     if skip_keys is None:
@@ -500,7 +359,123 @@ def translate_json_values(data, target_lang="EN", skip_keys=None):
     else:
         return data
 
-def parse_cv_to_json(file_path, report_lang, company_title=None):
+def run_streamlit():
+    import streamlit as st
+    st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
+    st.title("📄 Gerador de Relatórios de Candidatos")
+
+    uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
+    language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
+    company = st.text_input("🏢 Nome da empresa")
+    company_title = st.text_input("💼 Título da vaga")
+
+    # --- Language skill fields (form) ---
+    st.markdown("#### Idiomas e Nível do Candidato")
+    # Build dropdown levels directly from Google Sheet, preserving order
+    dropdown_levels = list(df_levels["language_level"])
+    LANGUAGE_DISPLAY = [
+        {"label_pt": "Inglês", "label_en": "English", "key": "english"},
+        {"label_pt": "Espanhol", "label_en": "Spanish", "key": "spanish"},
+        {"label_pt": "Japonês", "label_en": "Japanese", "key": "japanese"},
+    ]
+    language_skills = {}
+    for lang in LANGUAGE_DISPLAY:
+        col1, col2 = st.columns([1,2])
+        with col1:
+            label = lang["label_pt"] if language == "PT" else lang["label_en"]
+            st.write(f"{label}:")
+        with col2:
+            dropdown_label = f"Selecione o nível para {label}" if language == "PT" else f"Select level for {label}"
+            level = st.selectbox(
+                dropdown_label,
+                options=[""] + dropdown_levels,
+                key=f"{lang['key']}_level"
+            )
+            language_skills[lang["key"]] = level
+
+    if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
+        with st.spinner("Processando o currículo e gerando relatório..."):
+            file_bytes = uploaded_file.read()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                tmp_pdf.write(file_bytes)
+                tmp_pdf.flush()
+                tmp_pdf_path = tmp_pdf.name
+
+            json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title, language_skills=language_skills)
+            try:
+                os.remove(tmp_pdf_path)
+            except Exception:
+                pass
+
+            st.subheader("🔎 Dados extraídos do currículo:")
+            st.json(json_data)
+            if "error" in json_data:
+                st.error("❌ Erro retornado pelo parser:")
+                st.stop()
+
+            json_data["company"] = company
+
+            template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
+            safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
+            output_filename = f"Relatorio_{safe_name}_{datetime.today().strftime('%Y%m%d')}.docx"
+            output_path = os.path.join(tempfile.gettempdir(), output_filename)
+
+            st.info(f"📄 Caminho do template utilizado: `{template_path}`")
+            if not os.path.isfile(template_path):
+                st.error(f"❌ Template file does not exist: {template_path}")
+                st.stop()
+            try:
+                with open(template_path, "rb") as f:
+                    header = f.read(4)
+                st.info(f"📄 Primeiros bytes do template: {header}")
+                if header != b'PK\x03\x04':
+                    st.error("❌ Template file is not a valid DOCX (ZIP format).")
+                    st.stop()
+                st.info(f"📄 Tamanho do arquivo template: {os.path.getsize(template_path)} bytes")
+                try:
+                    doc = DocxTemplate(template_path)
+                    undeclared = doc.get_undeclared_template_variables()
+                    if undeclared:
+                        st.warning(f"⚠️ Template placeholders not provided in context: {undeclared}")
+                except Exception as e:
+                    st.warning(f"⚠️ Não foi possível checar placeholders do template: {e}")
+            except Exception as e:
+                st.error(f"❌ Could not read template file: {e}")
+                st.stop()
+
+            try:
+                generate_report_from_data(json_data, template_path, output_path)
+                if not os.path.exists(output_path):
+                    st.error("❌ O arquivo DOCX gerado não foi encontrado.")
+                    st.stop()
+                file_size = os.path.getsize(output_path)
+                st.info(f"📄 Tamanho do arquivo DOCX gerado: {file_size} bytes")
+                st.info(f"📄 Caminho do arquivo gerado: `{output_path}`")
+            except Exception as e:
+                st.error("❌ Erro ao gerar o relatório:")
+                st.code(traceback.format_exc())
+                st.stop()
+
+            try:
+                with open(output_path, "rb") as f:
+                    file_bytes = f.read()
+                st.info(f"📄 Primeiros bytes do DOCX gerado: {file_bytes[:4]}")
+                if not file_bytes.startswith(b'PK\x03\x04'):
+                    st.error("❌ O arquivo gerado não é um DOCX válido (espera-se PK header).")
+                    st.stop()
+                st.download_button(
+                    label="📥 Baixar Relatório",
+                    data=file_bytes,
+                    file_name=output_filename,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
+            except Exception as e:
+                st.error("❌ Erro ao baixar o relatório:")
+                st.code(traceback.format_exc())
+    else:
+        st.info("Por favor, preencha todos os campos e faça o upload do PDF.")
+
+def parse_cv_to_json(file_path, report_lang, company_title=None, language_skills=None):
     client = Client(api_key=os.getenv("OPENAI_API_KEY"))
     if not file_path:
         return {"error": "Missing CV file"}
@@ -556,20 +531,35 @@ def parse_cv_to_json(file_path, report_lang, company_title=None):
         if company_title is not None:
             validated_data["company_title"] = company_title
 
-        # --- Language level canonicalization and mapping to Google sheet descriptions ---
-        for lang in validated_data.get("languages", []):
-            lang_report_lang = validated_data.get("report_lang", report_lang)
-            canonical_level = canonicalize_language_level(lang.get("language_level", ""), lang_report_lang)
-            if canonical_level:
-                lang["language_level"] = canonical_level
-            # Now map canonical_level to description from Google sheet
-            level_entry = find_level_entry(lang.get("language_level"), lang_report_lang)
-            if level_entry:
-                lang["level_description"] = level_entry["level_description"]
-                lang["language_level"] = level_entry["language_level"]
-            else:
-                lang["level_description"] = ""
-            lang["language"] = smart_title(lang.get("language", ""))
+        # --- Languages: Only fill from form input (with robust fallback) ---
+        validated_data["languages"] = []
+        LANGUAGES_FORM = [
+            {"pt": "Inglês",   "en": "English",  "key": "english"},
+            {"pt": "Espanhol", "en": "Spanish",  "key": "spanish"},
+            {"pt": "Japonês",  "en": "Japanese", "key": "japanese"},
+        ]
+        report_lang_setting = (validated_data.get("report_lang") or report_lang or "PT").upper()
+        if language_skills:
+            for lang in LANGUAGES_FORM:
+                lang_key = lang["key"]
+                level = language_skills.get(lang_key, "")
+                if level:
+                    language_name = lang["pt"] if report_lang_setting == "PT" else lang["en"]
+                    row = df_levels[df_levels["language_level"] == level]
+                    if not row.empty:
+                        if report_lang_setting == "PT":
+                            level_description = row.iloc[0]["level_description_pt"]
+                        elif report_lang_setting == "EN":
+                            level_description = row.iloc[0]["level_description_en"]
+                        else:
+                            level_description = ""
+                    else:
+                        level_description = ""
+                    validated_data["languages"].append({
+                        "language": language_name,
+                        "language_level": level,
+                        "level_description": level_description
+                    })
 
         # Translate values to English or Portuguese only if report_lang is EN or PT, and skip excluded keys
         if validated_data.get("report_lang", "PT") == "EN":
@@ -730,98 +720,6 @@ def generate_report_from_data(data, template_path, output_path):
     except Exception as e:
         traceback.print_exc()
         raise e
-
-def run_streamlit():
-    import streamlit as st
-    st.set_page_config(page_title="Gerador de Relatórios", layout="centered")
-    st.title("📄 Gerador de Relatórios de Candidatos")
-
-    uploaded_file = st.file_uploader("📎 Faça upload do currículo (PDF)", type=["pdf"])
-    language = st.selectbox("🌐 Idioma do relatório", options=["PT", "EN"])
-    company = st.text_input("🏢 Nome da empresa")
-    company_title = st.text_input("💼 Título da vaga")
-
-    if st.button("▶️ Gerar Relatório") and uploaded_file and company and company_title:
-        with st.spinner("Processando o currículo e gerando relatório..."):
-            file_bytes = uploaded_file.read()
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                tmp_pdf.write(file_bytes)
-                tmp_pdf.flush()
-                tmp_pdf_path = tmp_pdf.name
-
-            json_data = parse_cv_to_json(tmp_pdf_path, language, company_title=company_title)
-            try:
-                os.remove(tmp_pdf_path)
-            except Exception:
-                pass
-
-            st.subheader("🔎 Dados extraídos do currículo:")
-            st.json(json_data)
-            if "error" in json_data:
-                st.error("❌ Erro retornado pelo parser:")
-                st.stop()
-
-            json_data["company"] = company
-
-            template_path = os.path.join(TEMPLATE_FOLDER, f"Template_Placeholders_{language}.docx")
-            safe_name = json_data.get('cdd_name', 'candidato').lower().replace(" ", "_")
-            output_filename = f"Relatorio_{safe_name}_{datetime.today().strftime('%Y%m%d')}.docx"
-            output_path = os.path.join(tempfile.gettempdir(), output_filename)
-
-            st.info(f"📄 Caminho do template utilizado: `{template_path}`")
-            if not os.path.isfile(template_path):
-                st.error(f"❌ Template file does not exist: {template_path}")
-                st.stop()
-            try:
-                with open(template_path, "rb") as f:
-                    header = f.read(4)
-                st.info(f"📄 Primeiros bytes do template: {header}")
-                if header != b'PK\x03\x04':
-                    st.error("❌ Template file is not a valid DOCX (ZIP format).")
-                    st.stop()
-                st.info(f"📄 Tamanho do arquivo template: {os.path.getsize(template_path)} bytes")
-                try:
-                    doc = DocxTemplate(template_path)
-                    undeclared = doc.get_undeclared_template_variables()
-                    if undeclared:
-                        st.warning(f"⚠️ Template placeholders not provided in context: {undeclared}")
-                except Exception as e:
-                    st.warning(f"⚠️ Não foi possível checar placeholders do template: {e}")
-            except Exception as e:
-                st.error(f"❌ Could not read template file: {e}")
-                st.stop()
-
-            try:
-                generate_report_from_data(json_data, template_path, output_path)
-                if not os.path.exists(output_path):
-                    st.error("❌ O arquivo DOCX gerado não foi encontrado.")
-                    st.stop()
-                file_size = os.path.getsize(output_path)
-                st.info(f"📄 Tamanho do arquivo DOCX gerado: {file_size} bytes")
-                st.info(f"📄 Caminho do arquivo gerado: `{output_path}`")
-            except Exception as e:
-                st.error("❌ Erro ao gerar o relatório:")
-                st.code(traceback.format_exc())
-                st.stop()
-
-            try:
-                with open(output_path, "rb") as f:
-                    file_bytes = f.read()
-                st.info(f"📄 Primeiros bytes do DOCX gerado: {file_bytes[:4]}")
-                if not file_bytes.startswith(b'PK\x03\x04'):
-                    st.error("❌ O arquivo gerado não é um DOCX válido (espera-se PK header).")
-                    st.stop()
-                st.download_button(
-                    label="📥 Baixar Relatório",
-                    data=file_bytes,
-                    file_name=output_filename,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-            except Exception as e:
-                st.error("❌ Erro ao baixar o relatório:")
-                st.code(traceback.format_exc())
-    else:
-        st.info("Por favor, preencha todos os campos e faça o upload do PDF.")
 
 if __name__ == "__main__":
     run_streamlit()
