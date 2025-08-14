@@ -10,12 +10,7 @@ import pandas as pd
 import re
 
 # --- MongoDB integration for company dropdown ---
-try:
-    from pymongo import MongoClient  # Optional dependency
-    MONGO_AVAILABLE = True
-except Exception:
-    MongoClient = None  # type: ignore
-    MONGO_AVAILABLE = False
+from pymongo import MongoClient
 
 # MongoDB connection info (provided by user)
 MONGO_URI = "mongodb+srv://hirokiwada:BYNDHR19@hiw@byndhr-cluster.1zn6ljk.mongodb.net/?retryWrites=true&w=majority&appName=BYNDHR-CLUSTER"
@@ -23,22 +18,12 @@ MONGO_DB_NAME = "report_generator"
 MONGO_COMPANY_COLLECTION = "companies"
 MONGO_COMPANY_KEY = "company_name"
 
-mongo_client = None
-mongo_db = None
-company_collection = None
-if MONGO_AVAILABLE:
-    try:
-        mongo_client = MongoClient(MONGO_URI)
-        mongo_db = mongo_client[MONGO_DB_NAME]
-        company_collection = mongo_db[MONGO_COMPANY_COLLECTION]
-    except Exception:
-        traceback.print_exc()
-        company_collection = None
+mongo_client = MongoClient(MONGO_URI)
+mongo_db = mongo_client[MONGO_DB_NAME]
+company_collection = mongo_db[MONGO_COMPANY_COLLECTION]
 
 def get_company_names_from_mongo():
     try:
-        if not MONGO_AVAILABLE or not company_collection:
-            return []
         companies = company_collection.find({}, {MONGO_COMPANY_KEY: 1, "_id": 0})
         company_names = sorted([c[MONGO_COMPANY_KEY] for c in companies if MONGO_COMPANY_KEY in c], key=lambda x: x.lower())
         return company_names
@@ -369,7 +354,8 @@ def translate_text(text, target_lang="EN"):
             temperature=0.2
         )
         result = response.choices[0].message.content.strip()
-        if not result or result.lower().startswith("i'm sorry") or result.lower().startswith("sorry") or result.lower().startswith("as an") or result.lower().startswith("as a") or "could stand for man[...]
+        # Fix: avoid unterminated/truncated string literal by simplifying the guard checks
+        if not result or any(result.lower().startswith(p) for p in ("i'm sorry", "sorry", "as an", "as a")):
             return text
         if result.strip() == text.strip():
             return text
